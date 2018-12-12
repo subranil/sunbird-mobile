@@ -1,48 +1,55 @@
-import { Component, NgZone } from "@angular/core";
-import { NavController, LoadingController, NavParams, Events, ToastController } from "ionic-angular";
+import { Component, NgZone } from '@angular/core';
 import {
-  ProfileService,
+  NavController,
+  LoadingController,
+  NavParams,
+  Events,
+  PopoverController,
+  App
+} from 'ionic-angular';
+import {
   AuthService,
   UserProfileService,
   UserProfileDetailsRequest,
-  CourseService,
-  ContentService,
-  Impression,
   TelemetryService,
   ImpressionType,
   PageId,
   Environment,
   InteractType,
-  InteractSubtype
-} from "sunbird";
-import { PopoverController } from "ionic-angular/components/popover/popover-controller";
-import { DatePipe } from "@angular/common";
+  InteractSubtype,
+  CourseService,
+  TelemetryObject,
+  ProfileService,
+  ContainerService
+} from 'sunbird';
 import * as _ from 'lodash';
-
-import { FormEducation } from "./education/form.education";
-import { FormAddress } from "./address/form.address";
-import { SkillTagsComponent } from "./skill-tags/skill-tags";
-import { AdditionalInfoComponent } from "./additional-info/additional-info";
-import { FormExperience } from "./experience/form.experience";
-import { OverflowMenuComponent } from "./overflowmenu/menu.overflow.component";
-import { UserSearchComponent } from "./user-search/user-search";
-import { ImagePicker } from "./imagepicker/imagepicker";
-import { generateInteractEvent } from "../../app/telemetryutil";
-import { TranslateService } from "@ngx-translate/core";
-
-/* Interface for the Toast Object */
-export interface toastOptions {
-  message: string,
-  duration: number,
-  position: string
-};
+import {
+  OverflowMenuComponent
+} from '@app/pages/profile';
+import {
+  generateInteractTelemetry,
+  generateImpressionTelemetry
+} from '@app/app/telemetryutil';
+import {
+  ProfileConstants,
+  MenuOverflow,
+  ContentType,
+  MimeType,
+  ContentCard
+} from '@app/app/app.constant';
+import { CategoriesEditPage } from '@app/pages/categories-edit/categories-edit';
+import { EnrolledCourseDetailsPage } from '@app/pages/enrolled-course-details/enrolled-course-details';
+import { CollectionDetailsPage } from '@app/pages/collection-details/collection-details';
+import { ContentDetailsPage } from '@app/pages/content-details/content-details';
+import { AppGlobalService, TelemetryGeneratorService, CommonUtilService } from '@app/service';
+import { FormAndFrameworkUtilService } from './formandframeworkutil.service';
 
 /**
  * The Profile page
  */
 @Component({
-  selector: "page-profile",
-  templateUrl: "profile.html"
+  selector: 'page-profile',
+  templateUrl: 'profile.html'
 })
 export class ProfilePage {
   /**
@@ -52,109 +59,107 @@ export class ProfilePage {
   /**
    * Contains userId for the Profile
    */
-  userId: string = '';
-  isLoggedInUser: boolean = false;
-  isRefreshProfile: boolean = false;
-  loggedInUserId: string = "";
-  lastLoginTime: string;
+  userId = '';
+  isLoggedInUser = false;
+  isRefreshProfile = false;
+  loggedInUserId = '';
 
   profileName: string;
-  profileProgress: string = "";
-  languages: string;
-  subjects: string;
-  grades: string;
-  onProfile: boolean = true;
-  isUploading: boolean = false;
+  onProfile = true;
+  trainingsCompleted = [];
+  roles = [];
 
   /**
    * Contains paths to icons
    */
-  imageUri: string = "assets/imgs/ic_profile_default.png";
-  educationIcon: string = "assets/imgs/ic_businessman.png";
-  locationIcon: string = "assets/imgs/ic_location.png";
-  list: Array<String> = [
-    "SETTINGS",
-    "LOGOUT"
-  ];
-  uncompletedDetails: any = {
-    title: ""
-  };
+  imageUri = 'assets/imgs/ic_profile_default.png';
 
-  /* Social Media Links */
-  fbLink: string = "";
-  twitterLink: string = "";
-  linkedInLink: string = "";
-  blogLink: string = "";
-
-  readonly DEFAULT_PAGINATION_LIMIT: number = 10;
-  paginationLimit: number = 10;
-  startLimit: number = 0;
+  readonly DEFAULT_PAGINATION_LIMIT = 2;
+  rolesLimit = 2;
+  badgesLimit = 2;
+  trainingsLimit = 2;
+  startLimit = 0;
 
   enrolledCourse: any = [];
-
-  options: toastOptions = {
-    message: '',
-    duration: 3000,
-    position: 'bottom'
+  orgDetails: {
+    'state': '',
+    'district': '',
+    'block': ''
   };
 
+  layoutPopular = ContentCard.LAYOUT_POPULAR;
+
   constructor(
-    public navCtrl: NavController,
-    public popoverCtrl: PopoverController,
-    private profileService: ProfileService,
-    public userProfileService: UserProfileService,
+    private navCtrl: NavController,
+    private popoverCtrl: PopoverController,
+    private userProfileService: UserProfileService,
     private zone: NgZone,
-    private datePipe: DatePipe,
-    public authService: AuthService,
-    public courseService: CourseService,
-    public contentService: ContentService,
-    public telemetryService: TelemetryService,
+    private authService: AuthService,
+    private telemetryService: TelemetryService,
     private loadingCtrl: LoadingController,
     private navParams: NavParams,
-    public events: Events,
-    public translate: TranslateService,
-    public toastCtrl: ToastController
+    private events: Events,
+    private appGlobalService: AppGlobalService,
+    private courseService: CourseService,
+    private telemetryGeneratorService: TelemetryGeneratorService,
+    private profileService: ProfileService,
+    private formAndFrameworkUtilService: FormAndFrameworkUtilService,
+    private containerService: ContainerService,
+    private commonUtilService: CommonUtilService,
+    private app: App
   ) {
-    this.userId = this.navParams.get("userId") || '';
-    this.isRefreshProfile = this.navParams.get("returnRefreshedUserProfileDetails");
+    this.userId = this.navParams.get('userId') || '';
+    this.isRefreshProfile = this.navParams.get('returnRefreshedUserProfileDetails');
     this.isLoggedInUser = this.userId ? false : true;
 
+    // Event for optional and forceful upgrade
+    this.events.subscribe('force_optional_upgrade', (upgrade) => {
+      if (upgrade) {
+        this.appGlobalService.openPopover(upgrade);
+      }
+    });
+
+    this.events.subscribe('loggedInProfile:update', (framework) => {
+      this.updateLocalProfile(framework);
+    });
   }
 
   ionViewDidLoad() {
     this.doRefresh();
     this.events.subscribe('profilePicture:update', (res) => {
-      if (res.isUploading && res.url != '') this.imageUri = res.url;
-      this.isUploading = res.isUploading;
+      if (res.isUploading && res.url !== '') {
+        this.imageUri = res.url;
+      }
     });
+    this.telemetryService.impression(generateImpressionTelemetry(
+      ImpressionType.VIEW, '',
+      PageId.PROFILE,
+      Environment.USER, '', '', '',
+      undefined,
+      undefined
+    ));
   }
 
   doRefresh(refresher?) {
-    let loader = this.getLoader();
+    const loader = this.getLoader();
+    this.isRefreshProfile = true;
     loader.present();
     this.refreshProfileData()
       .then(() => {
         setTimeout(() => {
-          if (refresher) refresher.complete();
+          if (refresher) {
+            refresher.complete();
+          }
+          this.events.publish('refresh:profile');
           loader.dismiss();
         }, 500);
+        // This method is used to handle trainings completed by user
+        this.getEnrolledCourses();
       })
       .catch(error => {
-        console.log("Error while Fetching Data", error);
+        console.error('Error while Fetching Data', error);
         loader.dismiss();
       });
-  }
-
-  ionViewDidEnter() {
-    this.generateImpressionEvent();
-  }
-
-  generateImpressionEvent() {
-    let impression = new Impression();
-    impression.type = ImpressionType.VIEW;
-    impression.pageId = PageId.PROFILE;
-    impression.env = Environment.USER;
-    this.telemetryService.impression(impression);
   }
 
   /**
@@ -162,68 +167,64 @@ export class ProfilePage {
    */
   resetProfile() {
     this.profile = {};
-    this.subjects = "";
-    this.grades = "";
-    this.languages = "";
   }
 
   /**
    * To refresh Profile data on pull to refresh or on click on the profile
    */
   refreshProfileData() {
+    const that = this;
     return new Promise((resolve, reject) => {
-      this.authService.getSessionData(session => {
-        if (session === undefined || session == null) {
-          reject("session is null");
+      that.authService.getSessionData(session => {
+        if (session === null || session === 'null') {
+          reject('session is null');
         } else {
-          let sessionObj = JSON.parse(session);
-          this.loggedInUserId = sessionObj["userToken"];
-          if (this.userId && sessionObj["userToken"] === this.userId)
-            this.isLoggedInUser = true;
+          const sessionObj = JSON.parse(session);
+          that.loggedInUserId = sessionObj[ProfileConstants.USER_TOKEN];
+          if (that.userId && sessionObj[ProfileConstants.USER_TOKEN] === that.userId) {
+            that.isLoggedInUser = true;
+          }
 
-          let req: UserProfileDetailsRequest = {
+          const req: UserProfileDetailsRequest = {
             userId:
-              this.userId && this.userId != sessionObj["userToken"]
-                ? this.userId
-                : sessionObj["userToken"],
-            requiredFields: [
-              "completeness",
-              "missingFields",
-              "lastLoginTime",
-              "topics"
-            ]
+              that.userId && that.userId !== sessionObj[ProfileConstants.USER_TOKEN]
+                ? that.userId
+                : sessionObj[ProfileConstants.USER_TOKEN],
+            requiredFields: ProfileConstants.REQUIRED_FIELDS
           };
-          if (this.isLoggedInUser) {
-            if (this.isRefreshProfile) {
+          if (that.isLoggedInUser) {
+            if (that.isRefreshProfile) {
               req.returnRefreshedUserProfileDetails = true;
-              this.isRefreshProfile = false;
+              that.isRefreshProfile = false;
             } else {
               req.refreshUserProfileDetails = true;
             }
           } else {
             req.returnRefreshedUserProfileDetails = true;
-            this.isRefreshProfile = false;
+            that.isRefreshProfile = false;
           }
 
-          this.userProfileService.getUserProfileDetails(
+          that.userProfileService.getUserProfileDetails(
             req,
             (res: any) => {
-              this.zone.run(() => {
-                this.resetProfile();
-                let r = JSON.parse(res);
-                this.profile = r.response;
-                if (r.response && r.response.avatar)
-                  this.imageUri = r.response.avatar;
-                this.searchContent();
-                this.formatLastLoginTime();
-                this.formatProfileProgress();
-                this.formatJobProfile();
-                if (!this.isLoggedInUser) this.formatSkills();
-                this.subjects = this.arrayToString(this.profile.subject);
-                this.languages = this.arrayToString(this.profile.language);
-                this.grades = this.arrayToString(this.profile.grade);
-                this.formatMissingFields();
-                this.formatSocialLinks();
+              that.zone.run(() => {
+                that.resetProfile();
+                const r = JSON.parse(res);
+                that.profile = r;
+                this.profileService.getCurrentUser().then((resp: any) => {
+                  const profile = JSON.parse(resp);
+                  that.formAndFrameworkUtilService.updateLoggedInUser(r, profile)
+                    .then((value) => {
+                      if (!value['status']) {
+                        this.app.getRootNav().setRoot(CategoriesEditPage, {showOnlyMandatoryFields: true, profile: value['profile']});
+                      }
+                    });
+                });
+                if (r && r.avatar) {
+                  that.imageUri = r.avatar;
+                }
+                that.formatRoles();
+                that.formatOrgDetails();
                 resolve();
               });
             },
@@ -243,273 +244,63 @@ export class ProfilePage {
    * @returns {string}
    */
   arrayToString(stringArray: Array<string>): string {
-    return stringArray.join(", ");
+    return stringArray.join(', ');
   }
 
   /**
-   * To Format the missing fields and gives it proper name based on missing field
-   * TODO: Need to replace following strings with the language constants
+   * Method to store all roles from different organizations into single array
    */
-  formatMissingFields() {
-    this.uncompletedDetails.title = '';
-    if (this.profile.missingFields && this.profile.missingFields.length) {
-      switch (this.profile.missingFields[0]) {
-        case "education":
-          this.uncompletedDetails.title = "+ Add Education";
-          this.uncompletedDetails.page = FormEducation;
-          this.uncompletedDetails.data = {
-            addForm: true,
-            profile: this.profile
+  formatRoles() {
+    this.roles = [];
+    if (this.profile && this.profile.roleList) {
+      if (this.profile.organisations && this.profile.organisations.length) {
+        for (let i = 0, len = this.profile.organisations[0].roles.length; i < len; i++) {
+          const roleKey = this.profile.organisations[0].roles[i];
+          const val = this.profile.roleList.find(role => role.id === roleKey);
+          if (val) {
+            this.roles.push(val.name);
           }
-          break;
-        case "jobProfile":
-          this.uncompletedDetails.title = "+ Add Experience";
-          this.uncompletedDetails.page = FormExperience;
-          this.uncompletedDetails.data = {
-            addForm: true,
-            profile: this.profile
-          }
-          break;
-        case "avatar":
-          this.uncompletedDetails.title = "+ Add Avatar";
-          this.uncompletedDetails.page = "picture";
-          break;
-        case "address":
-          this.uncompletedDetails.title = "+ Add Address";
-          this.uncompletedDetails.page = FormAddress;
-          this.uncompletedDetails.data = {
-            addForm: true,
-            profile: this.profile
-          };
-          break;
-        case "location":
-          let requiredProfileFields: Array<string> = [
-            'userId',
-            'firstName',
-            'lastName',
-            'language',
-            'email',
-            'phone',
-            'profileSummary',
-            'subject',
-            'gender',
-            'dob',
-            'grade',
-            'location',
-            'webPages'
-          ];
-
-          this.uncompletedDetails.title = "+ Add Location";
-          this.uncompletedDetails.page = AdditionalInfoComponent;
-          this.uncompletedDetails.data = {
-            userId: this.loggedInUserId,
-            profile: this.getSubset(requiredProfileFields, this.profile),
-            profileVisibility: this.profile.profileVisibility
-          }
-          break;
-      }
-    }
-  }
-
-  formatJobProfile() {
-    this.profile.jobProfile.forEach(job => {
-      if (job.subject) {
-        job.subject = this.arrayToString(job.subject);
-      }
-    });
-  }
-
-  formatLastLoginTime() {
-    this.lastLoginTime = this.datePipe.transform(new Date(this.profile.lastLoginTime), "MMM dd, yyyy, hh:mm:ss a");
-  }
-
-  /* Add new node in endorsersList as `canEndorse` */
-  formatSkills() {
-    this.profile.skills.forEach(skill => {
-      skill.canEndorse = !Boolean(_.find(skill.endorsersList,
-        (element) => {
-          return element.userId === this.loggedInUserId;
-        })
-      );
-    });
-  }
-
-  formatSocialLinks() {
-    if (this.profile.webPages.length) {
-      this.profile.webPages.forEach(element => {
-        if (element.type === "fb") {
-          this.fbLink = element.url;
-        } else if (element.type === "twitter") {
-          this.twitterLink = element.url;
-        } else if (element.type === "in") {
-          this.linkedInLink = element.url;
-        } else {
-          this.blogLink = element.url;
         }
-      });
-    }
-  }
-
-  formatProfileProgress() {
-    this.profileProgress = String(this.profile.completeness);
-  }
-
-  /**
-   * Redirects to the Education form and passes current form data if available
-   */
-  editEduDetails(isNewForm, profile, formDetails = {}) {
-    this.navCtrl.push(FormEducation, {
-      addForm: isNewForm,
-      formDetails: formDetails,
-      profile: profile
-    });
-  }
-
-  /**
-   * Redirects to the Address form and passes current form data if available
-   */
-  editAddress(isNewForm: boolean = true, addressDetails: any = {}) {
-    this.navCtrl.push(FormAddress, {
-      addForm: isNewForm,
-      addressDetails: addressDetails,
-      profile: this.profile
-    });
-  }
-
-  /**
-   * Redirects to the Add Skill page
-   */
-  addSkillTags() {
-    this.navCtrl.push(SkillTagsComponent);
-  }
-
-  /**
-   * Calls Endorse skill API and update the count of Skill endorsement
-   * @param {number} num - position of the skill in the skills Array
-   */
-  endorseSkill(num) {
-
-    // Increase the Endorsement Count with 1 and make it as endorsed
-    this.profile.skills[num].endorsementcount += 1;
-    this.profile.skills[num].canEndorse = false;
-
-    this.authService.getSessionData(session => {
-      if (session === undefined || session == null) {
-        console.error("session is null");
-      } else {
-        let req = {
-          userId: this.profile.skills[num].addedBy,
-          skills: [this.profile.skills[num].skillName]
-        };
-        this.userProfileService.endorseOrAddSkill(
-          req,
-          (res: any) => {
-            console.log("Success", JSON.parse(res));
-          },
-          (error: any) => {
-            console.error("Error", JSON.parse(error));
-
-            /* Revert Changes if API call get fails to update */
-            this.profile.skills[num].endorsementcount -= 1;
-            this.profile.skills[num].canEndorse = true;
-          }
-        );
       }
-    });
-  }
-
-  /**
-   * Shows the pop up with current Image or open camera instead.
-    */
-  editPicture() {
-    let popover = this.popoverCtrl.create(ImagePicker,
-      {
-        imageUri: this.imageUri,
-        profile: this.profile
-      });
-    popover.present();
-  }
-
-  /**
-   * Open up the experience form in edit mode
-   * @param {boolean} isNewForm - Tells whether user clicked on New Button or edit button
-   * @param {object} jobInfo - job object if available
-   */
-  editExperience(isNewForm: boolean = true, jobInfo: any = {}): void {
-    this.navCtrl.push(FormExperience, {
-      addForm: isNewForm,
-      jobInfo: jobInfo,
-      profile: this.profile
-    });
-  }
-
-  /**
-   * Open up the Additional Information form in edit mode
-   */
-  editAdditionalInfo() {
-    /* Required profile fields to pass to an Additional Info page */
-    let requiredProfileFields: Array<string> = ['userId', 'firstName', 'lastName', 'language', 'email', 'phone', 'profileSummary', 'subject', 'gender', 'dob', 'grade', 'location', 'webPages'];
-
-    this.navCtrl.push(AdditionalInfoComponent, {
-      userId: this.loggedInUserId,
-      profile: this.getSubset(requiredProfileFields, this.profile),
-      profileVisibility: this.profile.profileVisibility
-    });
-  }
-
-  /**
-   * To Toggle the lock
-   */
-  toggleLock(field: string, fieldDisplayName: string, revert: boolean = false, ) {
-    this.profile.profileVisibility[field] = this.profile.profileVisibility[field] == "private" ? "public" : "private";
-
-    if (!revert) {
-      if (this.profile.profileVisibility[field] === "private")
-        this.getToast(this.translateMessage('PRIVACY_HIDE_TEXT', this.translateMessage(fieldDisplayName))).present();
-      if (this.profile.profileVisibility[field] === "public")
-        this.getToast(this.translateMessage('PRIVACY_SHOW_TEXT', this.translateMessage(fieldDisplayName))).present();
-      this.setProfileVisibility(field, fieldDisplayName);
     }
   }
 
   /**
-   * To set Profile visibility
+   * Method to handle organisation details.
    */
-  setProfileVisibility(field: string, fieldDisplayName: string) {
-    this.authService.getSessionData(session => {
-      if (session === undefined || session == null) {
-        console.error("session is null");
-      } else {
-        let req = {
-          userId: JSON.parse(session)["userToken"],
-          privateFields:
-            this.profile.profileVisibility[field] == "private" ? [field] : [],
-          publicFields:
-            this.profile.profileVisibility[field] == "public" ? [field] : []
-        };
-        this.userProfileService.setProfileVisibility(
-          req,
-          (res: any) => {
-            console.log("success", res);
-            this.isRefreshProfile = true;
-            this.refreshProfileData();
-          },
-          (err: any) => {
-            console.error("Unable to set profile visibility.", err);
-            this.getToast(this.translateMessage('SOMETHING_WENT_WRONG')).present();
-            this.toggleLock(field, '', true); // In-case of API fails to update, make privacy lock icon as it was.
+  formatOrgDetails() {
+    this.orgDetails = { 'state': '', 'district': '', 'block': '' };
+    for (let i = 0, len = this.profile.organisations.length; i < len; i++) {
+      if (this.profile.organisations[i].locations) {
+        for (let j = 0, l = this.profile.organisations[i].locations.length; j < l; j++) {
+          switch (this.profile.organisations[i].locations[j].type) {
+            case 'state':
+              this.orgDetails.state = this.profile.organisations[i].locations[j];
+              break;
+
+            case 'block':
+              this.orgDetails.block = this.profile.organisations[i].locations[j];
+              break;
+
+            case 'district':
+              this.orgDetails.district = this.profile.organisations[i].locations[j];
+              break;
+
+            default:
+              break;
           }
-        );
+        }
       }
-    });
+    }
   }
 
   /**
    * To show popover menu
    */
   showOverflowMenu(event) {
-    let popover = this.popoverCtrl.create(OverflowMenuComponent, {
-      list: this.list
+    const popover = this.popoverCtrl.create(OverflowMenuComponent, {
+      list: MenuOverflow.MENU_LOGIN,
+      profile: this.profile
     }, {
         cssClass: 'box'
       });
@@ -518,53 +309,17 @@ export class ProfilePage {
     });
   }
 
-  completeProfile() {
-    if (this.uncompletedDetails.page == "picture") {
-      this.editPicture();
-    } else {
-      this.navCtrl.push(this.uncompletedDetails.page, this.uncompletedDetails.data);
-    }
-  }
-
-  /**
-   * Searches contents created by the user
-   */
-  searchContent(): void {
-    let req = {
-      createdBy: [this.userId || this.loggedInUserId],
-      limit: 20,
-      //TODO: Removing Course for the release 1.6.0, need to add it
-      contentTypes: ["story", "worksheet", "game", "collection", "textBook", "lessonPlan", "resource"]
-    }
-
-    this.contentService.searchContent(req,
-      false,
-      (result: any) => {
-        this.enrolledCourse = JSON.parse(result).result.contentDataList;
-      },
-      (error: any) => {
-        console.error("Error", error);
-      }
-    )
-  }
-
-  /**
-   * Navigates to User Search Page
-   */
-  gotoSearchPage(): void {
-    this.telemetryService.interact(
-      generateInteractEvent(InteractType.TOUCH,
-        InteractSubtype.SEARCH_BUTTON_CLICKED,
-        Environment.HOME,
-        PageId.PROFILE, null));
-    this.navCtrl.push(UserSearchComponent);
-  }
-
   /**
    * To show more Items in skills list
    */
   showMoreItems(): void {
-    this.paginationLimit = this.profile.skills.length;
+    this.rolesLimit = this.roles.length;
+    generateInteractTelemetry(InteractType.TOUCH,
+      InteractSubtype.VIEW_MORE_CLICKED,
+      Environment.HOME,
+      PageId.PROFILE, null,
+      undefined,
+      undefined);
   }
 
   /**
@@ -572,13 +327,41 @@ export class ProfilePage {
    * DEFAULT_PAGINATION_LIMIT = 10
    */
   showLessItems(): void {
-    this.paginationLimit = this.DEFAULT_PAGINATION_LIMIT;
+    this.rolesLimit = this.DEFAULT_PAGINATION_LIMIT;
+  }
+
+  showMoreBadges(): void {
+    this.badgesLimit = this.profile.badgeAssertions.length;
+    generateInteractTelemetry(InteractType.TOUCH,
+      InteractSubtype.VIEW_MORE_CLICKED,
+      Environment.HOME,
+      PageId.PROFILE, null,
+      undefined,
+      undefined);
+  }
+
+  showLessBadges(): void {
+    this.badgesLimit = this.DEFAULT_PAGINATION_LIMIT;
+  }
+
+  showMoreTainings(): void {
+    this.trainingsLimit = this.trainingsCompleted.length;
+    generateInteractTelemetry(InteractType.TOUCH,
+      InteractSubtype.VIEW_MORE_CLICKED,
+      Environment.HOME,
+      PageId.PROFILE, null,
+      undefined,
+      undefined);
+  }
+
+  showLessTrainings(): void {
+    this.trainingsLimit = this.DEFAULT_PAGINATION_LIMIT;
   }
 
   getLoader(): any {
     return this.loadingCtrl.create({
       duration: 30000,
-      spinner: "crescent"
+      spinner: 'crescent'
     });
   }
 
@@ -592,33 +375,103 @@ export class ProfilePage {
     return keys.reduce((a, c) => ({ ...a, [c]: obj[c] }), {});
   }
 
-  openLink(url: string): void {
-    let options = 'hardwareback=yes,clearcache=no,zoom=no,toolbar=yes,clearsessioncache=no,closebuttoncaption=Done,disallowoverscroll=yes';
-    (<any>window).cordova.InAppBrowser.open(url, '_system', options);
+  /**
+   * To get enrolled course(s) of logged-in user i.e, trainings in the UI.
+   *
+   * It internally calls course handler of genie sdk
+   */
+  getEnrolledCourses() {
+    const option = {
+      userId: this.profile.userId,
+      refreshEnrolledCourses: true,
+      returnRefreshedEnrolledCourses: true
+    };
+    this.trainingsCompleted = [];
+    this.courseService.getEnrolledCourses(option)
+      .then((res: any) => {
+        res = JSON.parse(res);
+        const enrolledCourses = res.result.courses;
+        for (let i = 0, len = enrolledCourses.length; i < len; i++) {
+          if ((enrolledCourses[i].status === 2) || (enrolledCourses[i].leafNodesCount === enrolledCourses[i].progress)) {
+            this.trainingsCompleted.push(enrolledCourses[i]);
+          }
+        }
+      })
+      .catch((error: any) => {
+        console.error('error while loading enrolled courses', error);
+      });
+  }
+
+  isResource(contentType) {
+    return contentType === ContentType.STORY ||
+      contentType === ContentType.WORKSHEET;
   }
 
   /**
-   * Used to Translate message to current Language
-   * @param {string} messageConst - Message Constant to be translated
-   * @returns {string} translatedMsg - Translated Message
+   * Navigate to the course/content details page
+   *
+   * @param {string} layoutName
+   * @param {object} content
    */
-  translateMessage(messageConst: string, field?: string): string {
-    let translatedMsg = '';
-    this.translate.get(messageConst, { '%s': field }).subscribe(
-      (value: any) => {
-        translatedMsg = value;
-      }
-    );
-    return translatedMsg;
+  navigateToDetailPage(content: any, layoutName: string, index: number): void {
+    const identifier = content.contentId || content.identifier;
+    const telemetryObject: TelemetryObject = new TelemetryObject();
+    telemetryObject.id = identifier;
+    if (layoutName === ContentCard.LAYOUT_INPROGRESS) {
+      telemetryObject.type = ContentType.COURSE;
+    } else {
+      telemetryObject.type = this.isResource(content.contentType) ? ContentType.RESOURCE : content.contentType;
+    }
+
+
+    const values = new Map();
+    values['sectionName'] = 'Contributions';
+    values['positionClicked'] = index;
+
+    this.telemetryGeneratorService.generateInteractTelemetry(InteractType.TOUCH,
+      InteractSubtype.CONTENT_CLICKED,
+      Environment.USER, // env
+      PageId.PROFILE, // page name
+      telemetryObject,
+      values);
+    if (content.contentType === ContentType.COURSE) {
+      this.navCtrl.push(EnrolledCourseDetailsPage, {
+        content: content
+      });
+    } else if (content.mimeType === MimeType.COLLECTION) {
+      this.navCtrl.push(CollectionDetailsPage, {
+        content: content
+      });
+    } else {
+      this.navCtrl.push(ContentDetailsPage, {
+        content: content
+      });
+    }
   }
 
-  /**
-   * It will returns Toast Object
-   * @param {message} string - Message for the Toast to show
-   * @returns {object} - toast Object
-   */
-  getToast(message: string = ''): any {
-    this.options.message = message;
-    if (message.length) return this.toastCtrl.create(this.options);
+  updateLocalProfile(framework) {
+    this.profile.framework = framework;
+    this.profileService.getCurrentUser().then((resp: any) => {
+      const profile = JSON.parse(resp);
+      this.formAndFrameworkUtilService.updateLoggedInUser(this.profile, profile)
+        .then((value) => {
+        });
+    });
   }
+
+  navigateToCategoriesEditPage() {
+    if (this.commonUtilService.networkInfo.isNetworkAvailable) {
+      this.telemetryService.interact(
+        generateInteractTelemetry(InteractType.TOUCH,
+          InteractSubtype.EDIT_CLICKED,
+          Environment.HOME,
+          PageId.PROFILE, null,
+          undefined,
+          undefined));
+      this.navCtrl.push(CategoriesEditPage);
+    } else {
+      this.commonUtilService.showToast('NEED_INTERNET_TO_CHANGE');
+    }
+  }
+
 }

@@ -15,67 +15,77 @@
       </div>
       <br>
       <div *ngIf="showFilter" class="padding-top-9">
-        <div class="width-100" (click)="showFilter = false; selectedFilter = 'View ongoing batches'" [hidden]="selectedFilter === 'View ongoing batches'">
-          {{ 'VIEW_ONGOING_BATCHES' | translate }}
+        <div class="width-100" (click)="changeFilter('ONGOING'); showFilter = false;" [hidden]="selectedFilter === filterList.ONGOING">
+          {{ filterList.ONGOING }}
         </div>
-        <div class="width-100" (click)="showFilter = false; selectedFilter = 'View upcoming batches'" [hidden]="selectedFilter === 'View upcoming batches'">
-          {{ 'VIEW_UPCOMING_BATCHES' | translate }}
+        <div class="width-100" (click)="changeFilter('UPCOMING'); showFilter = false;" [hidden]="selectedFilter === filterList.UPCOMING">
+          {{ filterList.UPCOMING }}
         </div>
       </div>
     </div>
-    <br/>
+    <br />
   </div>
   <div class="my-overlay" padding *ngIf="isGuestUser">
-    <div class="guest-user-info" text-center>
+    <!--<div class="guest-user-info" text-center>
       <p> {{ 'OVERLAY_LABEL_TAKE_COURSE' | translate }} </p>
       <br/>
       <span>{{ 'OVERLAY_INFO_TEXT_TAKE_COURSE' | translate }} </span>
       <br/>
       <br/>
       <button ion-button block (click)="signIn()">{{ 'OVERLAY_SIGN_IN' | translate }}</button>
+    </div>-->
+    <div class="guest-user-info" text-center>
+      <sign-in-card (valueChange)="buttonClick($event)" [title]="'OVERLAY_LABEL_TAKE_COURSE'" [description]="'OVERLAY_INFO_TEXT_TAKE_COURSE'"></sign-in-card>
     </div>
+
   </div>
   <div class="batch-list" padding-top *ngIf="!isGuestUser">
-    <div [hidden]="selectedFilter === 'View upcoming batches'">
+    <div [hidden]="selectedFilter === filterList.UPCOMING">
       <ion-list *ngIf="ongoingBatches && ongoingBatches.length && !showLoader">
         <ion-item *ngFor="let batch of ongoingBatches">
           <h3 class="batch-name">{{ batch.name }}</h3>
-          <span>{{batch.startDate | date: 'mediumDate' }} - {{ batch.endDate | date: 'mediumDate' }}</span>
+          <span class="text-gray-color">
+            {{batch.startDate | date: 'mediumDate' }} - {{ batch.endDate | date: 'mediumDate' }}
+          </span>
           <p *ngIf="batch.creatorFirstName">
-            <span>{{ 'CREATED_BY_SMALL' | translate }}</span>
-            <span class="font-weight-500">{{ batch.creatorFirstName + ' ' + batch.creatorLastName }}</span>
+            <span>{{ 'BATCH_CREATED_BY' | translate }}</span>
+            <span class="font-weight-500 content-meta-title">{{ batch.creatorFirstName + ' ' + batch.creatorLastName }}</span>
           </p>
-          <button class="enroll-btn" ion-button clear item-end (click)="enrollIntoBatch(batch)">{{ 'ENROLL' | translate }}</button>
+          <button class="enroll-btn" ion-button clear item-end (click)="enrollIntoBatch(batch)">
+            {{ 'ENROLL' | translate }}
+          </button>
         </ion-item>
       </ion-list>
 
       <div class="batch-empty-msg-wrapper" *ngIf="ongoingBatches && ongoingBatches.length === 0 && !showLoader">
         <div class="msg-holder" padding>
           <img class="empty-batch-icon" src="assets/imgs/ic_no_batch.png" />
-          <br/>
-          <br/>
-          <span class="text-holder">{{ 'ERROR_NO_BATCHES_FOUND' | translate }}</span>
+          <br />
+          <br />
+          <span class="text-holder" text-center>{{ 'ERROR_NO_BATCHES_FOUND' | translate }}</span>
         </div>
       </div>
     </div>
-    <div [hidden]="selectedFilter === 'View ongoing batches'">
+    <div [hidden]="selectedFilter === filterList.ONGOING">
       <ion-list *ngIf="upcommingBatches && upcommingBatches.length && !showLoader">
         <ion-item *ngFor="let batch of upcommingBatches">
           <h3 class="batch-name">{{ batch.name }}</h3>
           <span>{{ batch.startDate | date: 'mediumDate' }} - {{ batch.endDate | date: 'mediumDate' }}</span>
           <p *ngIf="batch.creatorFirstName">
-            <span> {{ 'CREATED_BY_SMALL' | translate }} </span>
+            <span> {{ 'BATCH_CREATED_BY' | translate }} </span>
             <span class="font-weight-500"> {{batch.creatorFirstName + ' ' + batch.creatorLastName}} </span>
           </p>
-          <button class="enroll-btn" ion-button clear item-end (click)="enrollIntoBatch(batch)">{{ 'ENROLL' | translate }}</button>
+          <button class="enroll-btn" ion-button clear item-end (click)="enrollIntoBatch(batch)">
+            {{ 'ENROLL' | translate }}
+          </button>
         </ion-item>
       </ion-list>
       <div class="batch-empty-msg-wrapper" *ngIf="upcommingBatches && upcommingBatches.length === 0 && !showLoader">
         <div class="msg-holder" padding>
           <img class="empty-batch-icon" src="assets/imgs/ic_no_batch.png" />
-          <br/>
-          <br/>
-          <span class="text-holder">{{ 'ERROR_NO_BATCHES_FOUND' | translate }}</span>
+          <br />
+          <br />
+          <span class="text-holder" text-center>{{ 'ERROR_NO_BATCHES_FOUND' | translate }}</span>
         </div>
       </div>
     </div>

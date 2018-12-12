@@ -1,23 +1,59 @@
-import { NgModule, ErrorHandler } from '@angular/core';
+import {
+  NgModule,
+  ErrorHandler
+} from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { IonicApp, IonicModule, IonicErrorHandler, Events } from 'ionic-angular';
+import {
+  IonicApp,
+  IonicModule,
+  IonicErrorHandler,
+  Events
+} from 'ionic-angular';
 import { MyApp } from './app.component';
 import { StatusBar } from '@ionic-native/status-bar';
-import { TranslateModule, TranslateLoader, TranslateService } from '@ngx-translate/core';
+import {
+  TranslateModule,
+  TranslateLoader,
+  TranslateService
+} from '@ngx-translate/core';
 import { TranslateHttpLoader } from '@ngx-translate/http-loader';
-import { HttpClientModule, HttpClient } from "@angular/common/http";
-
+import {
+  HttpClientModule,
+  HttpClient
+} from '@angular/common/http';
 import { PluginModules } from './module.service';
-import { TelemetryService, EventService, FrameworkModule, TabsPage } from 'sunbird';
-import { Globalization } from '@ionic-native/globalization';
+import {
+  EventService,
+  FrameworkModule,
+  TabsPage
+} from 'sunbird';
 import { AppVersion } from '@ionic-native/app-version';
 import { SocialSharing } from '@ionic-native/social-sharing';
-import { IonicImageLoader, ImageLoader, ImageLoaderConfig } from "ionic-image-loader";
+import {
+  IonicImageLoader,
+  ImageLoader,
+  ImageLoaderConfig
+} from 'ionic-image-loader';
+import { FileTransferObject, FileTransfer } from '@ionic-native/file-transfer';
+import { FileOpener } from '@ionic-native/file-opener';
+import { AppGlobalService } from '../service/app-global.service';
+import { CourseUtilService } from '../service/course-util.service';
+import { UpgradePopover } from '../pages/upgrade/upgrade-popover';
+import { TelemetryGeneratorService } from '../service/telemetry-generator.service';
+import { QRScannerResultHandler } from '../pages/qrscanner/qrscanresulthandler.service';
+import { CommonUtilService } from '../service/common-util.service';
+import { BroadcastComponent } from '../component/broadcast/broadcast';
+
+export const createTranslateLoader = (httpClient: HttpClient) => {
+  return new TranslateHttpLoader(httpClient, './assets/i18n/', '.json');
+};
 
 @NgModule({
   declarations: [
     MyApp,
     TabsPage,
+    UpgradePopover,
+    BroadcastComponent
   ],
   imports: [
     HttpClientModule,
@@ -38,26 +74,42 @@ import { IonicImageLoader, ImageLoader, ImageLoaderConfig } from "ionic-image-lo
     IonicImageLoader.forRoot(),
     ...PluginModules
   ],
-  bootstrap: [IonicApp],
+  bootstrap: [
+    IonicApp
+  ],
   entryComponents: [
     MyApp,
-    TabsPage
+    TabsPage,
+    UpgradePopover,
+    BroadcastComponent
   ],
   providers: [
     StatusBar,
-    Globalization,
     AppVersion,
     SocialSharing,
     ImageLoader,
-    { provide: ErrorHandler, useClass: IonicErrorHandler },
+    FileTransferObject,
+    FileOpener,
+    FileTransfer,
+    AppGlobalService,
+    CourseUtilService,
+    TelemetryGeneratorService,
+    QRScannerResultHandler,
+    CommonUtilService,
+    { provide: ErrorHandler, useClass: IonicErrorHandler }
+  ],
+  exports: [
+    BroadcastComponent
   ]
 })
 export class AppModule {
 
-  constructor(translate: TranslateService, 
-    private eventService: EventService, 
-    private events: Events, 
+  constructor(
+    translate: TranslateService,
+    private eventService: EventService,
+    private events: Events,
     private imageConfig: ImageLoaderConfig) {
+
     translate.setDefaultLang('en');
 
     this.registerForEvent();
@@ -65,18 +117,17 @@ export class AppModule {
     this.imageConfig.maxCacheSize = 2 * 1024 * 1024;
   }
 
-
   registerForEvent() {
     this.eventService.register((response) => {
-      // console.log("Event : " + response);
-      this.events.publish('genie.event', response);
+      const res = JSON.parse(response);
+      if (res && res.type === 'genericEvent') {
+        this.events.publish('generic.event', response);
+      } else {
+        this.events.publish('genie.event', response);
+      }
+
     }, (error) => {
       // console.log("Event : " + error);
     });
   }
-}
-
-
-export function createTranslateLoader(httpClient: HttpClient) {
-  return new TranslateHttpLoader(httpClient, './assets/i18n/', '.json');
 }

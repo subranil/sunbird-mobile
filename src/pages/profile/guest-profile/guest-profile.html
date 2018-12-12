@@ -1,4 +1,3 @@
-<!-- Header Bar -->
 <ion-header>
   <ion-navbar>
     <ion-title>{{ 'PROFILE_LW' | translate }}</ion-title>
@@ -12,61 +11,99 @@
 
 <ion-content>
   <ion-refresher (ionRefresh)="refreshProfileData($event)"></ion-refresher>
-
+  <div *ngIf="showWarning" class="offline-message">
+    <span>{{'NEED_INTERNET_TO_CHANGE' | translate}} </span>
+  </div>
   <div text-center class="padding-top-10 padding-bottom-10">
-    <img class="custom-avatar" [src]="imageUri" />
-    <p class="profile-name">{{profile?.handle}}</p>
+    <p class="profile-name">
+      <span class="user">{{profile?.handle}}</span>
+      <span><ion-icon class="editIcon" name="md-create" color="primary" (click)="editGuestProfile()"></ion-icon></span>
+    </p>
+
+    <p class="change-role" (click)="goToRoles()" text-uppercase>
+      {{'CHANGE_ROLE' | translate }}
+    </p>
+    <p *ngIf="profile?.profileType === 'TEACHER'" class="user-type">{{'USER_TYPE_1' | translate }}</p>
+    <p *ngIf="profile?.profileType === 'STUDENT'" class="user-type">{{'USER_TYPE_2' | translate }}</p>
   </div>
 
-  <ion-list>
+  <ion-list *ngIf="appGlobalService?.DISPLAY_FRAMEWORK_CATEGORIES_IN_PROFILE">
     <ion-list-header class="section-title padding-left-10" no-padding>
       {{'PROFILE_DETAILS_TITLE' | translate}}
-      <ion-icon float-end name="md-create" color="primary" (click)="editGuestProfile()"></ion-icon>
     </ion-list-header>
 
-    <ion-item no-padding class="padding-left-10" *ngIf="profile?.board">
-      <ion-row *ngIf="profile?.board && profile.board != ''">
+    <ion-item no-padding class="padding-left-10">
+      <ion-row [hidden]="true">
         <ion-col col-6>
-          <span text-uppercase class="info-title">{{'BOARD' | translate}}</span>
+          <div text-uppercase class="info-title">{{'SYLLABUS' | translate}}</div>
         </ion-col>
-        <ion-col class="ellipsis font-size-14rem content" text-uppercase col-6 text-end>
-          {{profile?.board}}
+        <ion-col class="font-size-14rem page-content" col-6 text-end>
+          <div *ngIf="profile?.syllabus && profile?.syllabus !== ''">
+            <div class="ellipsis text-align">{{syllabus}}</div>
+            <ion-icon class="icon-align" float="end" name="md-create" color="primary" (click)="editGuestProfile()"></ion-icon>
+          </div>
+          <div *ngIf="!profile?.syllabus?.length" (click)="editGuestProfile()" class="vertical-align">{{'ADD' | translate}}</div>
         </ion-col>
       </ion-row>
 
-      <ion-row *ngIf="profile?.grade && profile?.grade != ''">
+      <ion-row>
         <ion-col col-6>
-          <span class="info-title" text-uppercase >{{'GRADE' | translate}}</span>
+          <div text-uppercase class="info-title">{{'BOARD' | translate}}</div>
         </ion-col>
-        <ion-col class="ellipsis font-size-14rem content" text-capitalize col-6 text-end>
-          {{profile?.grade}}
+        <ion-col class="font-size-14rem page-content" col-6 text-end>
+          <div *ngIf="profile?.syllabus?.length && profile?.board?.length">
+            <div class="ellipsis text-align">{{boards}}</div>
+            <ion-icon class="icon-align" float="end" name="md-create" color="primary" (click)="editGuestProfile()"></ion-icon>
+          </div>
+          <div *ngIf="!profile.syllabus?.length || !profile?.board?.length" (click)="editGuestProfile()" class="vertical-align">{{'ADD' | translate}}</div>
         </ion-col>
       </ion-row>
 
-      <ion-row *ngIf="profile?.medium && profile?.medium != ''">
+      <ion-row>
         <ion-col col-6>
-          <span class="info-title" text-uppercase>{{'MEDIUM_2' | translate}}</span>
+          <div class="info-title" text-uppercase>{{'MEDIUM' | translate}}</div>
         </ion-col>
-        <ion-col class="ellipsis font-size-14rem content" text-capitalize col-6 text-end>
-          {{profile?.medium}}
+        <ion-col class="ellipsis font-size-14rem page-content" col-6 text-end>
+          <div *ngIf="profile?.syllabus?.length && profile?.board?.length && profile?.medium?.length">
+            <div class="ellipsis text-align">{{medium}}</div>
+            <ion-icon class="icon-align" float="end" name="md-create" color="primary" (click)="editGuestProfile()"></ion-icon>
+          </div>
+          <div *ngIf="!profile?.syllabus?.length || !profile?.board?.length || !profile?.medium?.length" (click)="editGuestProfile()"
+            class="vertical-align">{{'ADD' | translate}}</div>
         </ion-col>
       </ion-row>
 
-      <ion-row *ngIf="profile?.subject && profile?.subject != ''">
+      <ion-row>
         <ion-col col-6>
-          <span class="info-title" text-uppercase>{{'SUBJECTS' | translate}}</span>
+          <div class="info-title" text-uppercase>{{'CLASS' | translate}}</div>
         </ion-col>
-        <ion-col class="ellipsis font-size-14rem content" text-capitalize col-6 text-end>
-          {{profile?.subject}}
+        <ion-col class="ellipsis font-size-14rem page-content" col-6 text-end>
+          <div *ngIf="profile?.syllabus?.length && profile?.board?.length && profile?.medium?.length && profile?.grade?.length">
+            <div class="ellipsis text-align">{{grade}}</div>
+            <ion-icon class="icon-align" float="end" name="md-create" color="primary" (click)="editGuestProfile()"></ion-icon>
+          </div>
+          <div *ngIf="!profile?.syllabus?.length || !profile?.board?.length || !profile?.medium?.length || !profile?.grade?.length"
+            (click)="editGuestProfile()" class="vertical-align">{{'ADD' | translate}}</div>
+        </ion-col>
+      </ion-row>
+
+      <ion-row>
+        <ion-col col-6>
+          <div class="info-title" text-uppercase>{{'SUBJECTS' | translate}}</div>
+        </ion-col>
+        <ion-col class="ellipsis font-size-14rem page-content" col-6 text-end>
+          <div *ngIf="profile?.syllabus?.length && profile?.board?.length && profile?.medium?.length && profile?.grade?.length && profile?.subject?.length">
+            <div class="ellipsis text-align">{{subjects}}</div>
+            <ion-icon class="icon-align" float="end" name="md-create" color="primary" (click)="editGuestProfile()"></ion-icon>
+          </div>
+          <div *ngIf="!profile?.syllabus?.length || !profile?.board?.length || !profile?.medium?.length || !profile?.grade?.length || !profile?.subject?.length"
+            (click)="editGuestProfile()" class="vertical-align">{{'ADD' | translate}}</div>
         </ion-col>
       </ion-row>
 
     </ion-item>
-
   </ion-list>
-
-  <div class="signin-card-bg">
-    <sign-in-card></sign-in-card>
+  <div *ngIf="showSignInCard" class="signin-card-bg">
+    <sign-in-card (valueChange)="buttonClick($event)"></sign-in-card>
   </div>
-
 </ion-content>

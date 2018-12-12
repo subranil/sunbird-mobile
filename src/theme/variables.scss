@@ -1,3 +1,5 @@
+
+@import "driver";
 // Ionic Variables and Theming. For more info, please see:
 // http://ionicframework.com/docs/theming/
 
@@ -10,7 +12,6 @@ $font-path: "../assets/fonts";
 // rtl styles in your app. For more info, please see:
 // http://ionicframework.com/docs/theming/rtl-support/
 $app-direction: multi;
-
 
 @import "ionic.globals";
 
@@ -44,7 +45,7 @@ $colors: (
   twitter:         #55acee,
   linkedIn:        #007bb5,
 
-  black:         #000000,
+  black:           #000000,
   primary_black:   #333333,
   secondary_black: #484848,
   shadow_black:    #CBCBCB,
@@ -52,32 +53,36 @@ $colors: (
   dark_gray:       #979797,
   medium_gray:     #CCCCCC,
   light_gray:      #ECEFF0,
+  gray:            #D8D8D8,
+  text_gray:       #4A4A4A,
 
-  white:         #FFFFFF,
-  white_f7 :       #F7F7F7,
-  white_f2 :       #F2F2F2,
-  white_f4 :       #F4F4F4,
-  white_f0 :       #F0F0F0,
 
-  green:         #27BC5C,
+  white:           #FFFFFF,
+  white_f7:        #F7F7F7,
+  white_f2:        #F2F2F2,
+  white_f4:        #F4F4F4,
+  white_f0:        #F0F0F0,
+
+  green:           #27BC5C,
   dark_green:      #4CB5AB,
   success_green:   #7ED321,
   dirt_green:      #37474F,
 
-  orange:        #FF9F00,
-  yellow:        #E3C31C,
+  orange:          #FF9F00,
+  yellow:          #E3C31C,
   lemon_yellow:    #CCE310,
 
   dark_violet:     #9012FE,
   medium_violet:   #F0E9FD,
   light_violet:    #F3E7FE,
 
-  red:           #D50000,
+  red:             #D50000,
   light_red:       #FA8F9C,
 
   thick_blue:      #006DE5,
   primary_blue:    #007AFF,
-  fade_blue:       #F2F8FF
+  fade_blue:       #F2F8FF,
+  broadcast_greeting_navbar : #0b75fa,
 );
 
 $button-md-height: 4.3rem;
@@ -86,6 +91,13 @@ $button-md-border-radius: 6px;
 
 $toolbar-md-title-font-size: 1.6rem;
 $toolbar-md-title-text-color: map-get($colors, primary_black);
+
+$segment-button-md-font-size: 1.4rem;
+$segment-button-md-border-color-activated: map-get($colors, primary);
+$segment-button-md-text-color-activated: map-get($colors, primary);
+$segment-button-md-height: 5.2rem;
+$segment-button-md-line-height: 5rem;
+
 
 
 // App iOS Variables
@@ -133,7 +145,7 @@ $toolbar-md-title-text-color: map-get($colors, primary_black);
 @import "roboto";
 @import "noto-sans";
 
-$font-family-base: 'OpenSans';
-$font-family-ios-base: 'OpenSans';
-$font-family-md-base: 'OpenSans';
-$font-family-wp-base: 'OpenSans';
+$font-family-base: 'NotoSans';
+$font-family-ios-base: 'NotoSans';
+$font-family-md-base: 'NotoSans';
+$font-family-wp-base: 'NotoSans';

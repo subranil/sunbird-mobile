@@ -1,6 +1,8 @@
-  import { Component } from "@angular/core";
-import { NavParams, PopoverController, NavController, Events } from "ionic-angular";
-import { FilterOptions } from "./options/options";
+import { Component } from '@angular/core';
+import { NavParams, PopoverController, NavController, Events } from 'ionic-angular';
+import { CommonUtilService } from '../../../service/common-util.service';
+import * as _ from 'lodash';
+import { FilterOptions } from './options/options';
 
 @Component({
   selector: 'page-filter',
@@ -12,12 +14,18 @@ export class FilterPage {
 
   facetsFilter: Array<any> = [];
 
-  constructor(private navParams: NavParams, private popCtrl: PopoverController, private navCtrl: NavController, private events: Events) {
+  constructor(
+    private navParams: NavParams,
+    private popCtrl: PopoverController,
+    private navCtrl: NavController,
+    private events: Events,
+    private commonUtilService: CommonUtilService
+  ) {
     this.init();
   }
 
   openFilterOptions(facet) {
-    let popUp = this.popCtrl.create(FilterOptions, { facet: facet}, {cssClass: 'option-box'});
+    const popUp = this.popCtrl.create(FilterOptions, { facet: facet }, { cssClass: 'option-box' });
     popUp.present();
   }
 
@@ -37,19 +45,55 @@ export class FilterPage {
     });
 
     if (count > 0) {
-      return count + " added";
+      return `${count} ` + this.commonUtilService.translateMessage('FILTER_ADDED');
     }
 
-    return "";
+    return '';
   }
 
   private init() {
     this.filterCriteria = this.navParams.get('filterCriteria');
+    const filters: Array<any> = [];
+    this.filterCriteria.facets.forEach(facet => {
+      const data = this.getFilterValues(facet);
+      if (data) {
+        filters.push(data);
+      }
+    });
+
+    if (filters && filters.length) {
+      this.filterCriteria.facetFilters.length = 0;
+      this.filterCriteria.facetFilters = filters;
+    }
 
     this.filterCriteria.facetFilters.forEach(facet => {
       if (facet.values && facet.values.length > 0) {
+        if (facet.name !== 'gradeLevel') {
+          facet.values = _.orderBy(facet.values, ['name'], ['asc']);
+        }
+        facet.values.forEach((element, index) => {
+          if (element.name.toUpperCase() === 'other'.toUpperCase()) {
+            const elementVal = element;
+            facet.values.splice(index, 1);
+            facet.values.push(elementVal);
+          }
+        });
         this.facetsFilter.push(facet);
       }
     });
   }
+
+  getFilterValues(facet: string) {
+    if (facet) {
+      const filterName = _.find(this.filterCriteria.facetFilters, ['name', facet]);
+      if (filterName && filterName.values && filterName.values.length) {
+        return filterName;
+      } else {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
+
 }

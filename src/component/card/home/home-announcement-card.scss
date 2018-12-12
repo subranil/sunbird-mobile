@@ -1,6 +1,7 @@
 home-announcement-card {
 	.border-bottom {
 		border-bottom: 2px solid #efeff4 !important;
+		padding-bottom: 10px;
 	}
 	.icon {
 		width: 15px;
@@ -14,16 +15,23 @@ home-announcement-card {
 	.view-all-link {
 		font-size: 1.2rem;
 		padding-top: 11px;
-		font-family: 'sunbirdboldfont';
-		font-weight: 500;
+		@extend .NotoSans-bold;
+		@extend .font-weight-500;
 	}
 	.announcement-heading {
 		padding-top: 10px;
-		font-weight: 500;
-		font-family: 'sunbirdboldfont';
+		@extend .font-weight-500;
+		@extend .NotoSans-bold;
 		font-size: 1.250em;
 	}
-	.inline-block {
+	.display-inline {
+		display: inline-block !important;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		width: 90%;
+	}
+	.inline-block{
 		display: inline-block;
 	}
 	.announcement-type {
@@ -35,13 +43,13 @@ home-announcement-card {
 		cursor: pointer;
 		vertical-align: middle;
 		max-width: 100px;
-		padding: 2px 5px;
+		@include padding(1px, 4px !important);
 		text-align: center;
 		border-radius: 2px;
-		font-size: 10px;
+		font-size: 6px;
 	}
 	.borderBottom {
-		border-bottom: 6px solid #efeff4;
+		border-bottom: 5px solid #efeff4;
 	}
 	.border-none {
 		border: none;
@@ -49,5 +57,38 @@ home-announcement-card {
 	.link-div {
 		margin-top: 15px;
 		padding-bottom: 12px;
+	}
+	.width60{
+		max-width: 60% !important;
+		white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+	}
+	.marginTop{
+		margin-top: 6px;
+	}
+	.announcementDate{
+		padding-bottom: 10px;
+		@include padding(null, 16px, null, 16px);
+	}
+	.card-padding{
+		@include padding(16px, 16px, 0, 16px);
+	}
+	.list-md {
+		margin:0px;
+	}
+	.borderLeft{
+		@include ltr() {
+		border-left: 4px solid #006DE5 !important;
+		}
+		@include rtl() {
+		border-right: 4px solid #006DE5 !important;
+		}
+	}
+	.verticle-align{
+		vertical-align: top;
+	}
+	a {
+		text-decoration: none;
 	}
 }

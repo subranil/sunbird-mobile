@@ -1,36 +1,26 @@
-import { Component, OnInit, NgZone } from '@angular/core';
+import { Component, NgZone } from '@angular/core';
 import { NavController, Events, Platform, ToastController } from 'ionic-angular';
 import { DocumentDirection } from 'ionic-angular/platform/platform';
-// import { Storage } from "@ionic/storage";
-
 import {
   CourseService,
   AnnouncementService,
   AuthService,
-  PageAssembleService,
-  PageAssembleCriteria,
   TelemetryService,
-  Impression,
-  FrameworkModule,
   ContentImport,
   ContentImportRequest,
   ContentService,
   UserProfileService,
   TenantInfoRequest,
   PageId,
-  ContentDetailRequest,
+  UserProfileDetailsRequest
 } from 'sunbird';
-import { CourseCard } from './../../component/card/course/course-card';
-import { HomeAnnouncementCard } from '../../component/card/home/home-announcement-card'
-import { AnnouncementListComponent } from './announcement-list/announcement-list'
-import { SunbirdQRScanner, QRResultCallback } from '../qrscanner/sunbirdqrscanner.service';
+import { AnnouncementListComponent } from './announcement-list/announcement-list';
+import { SunbirdQRScanner } from '../qrscanner/sunbirdqrscanner.service';
 import { SearchPage } from '../search/search';
-import { FilterPage } from '../search/filters/filter';
-import { CourseDetailPage } from '../course-detail/course-detail';
-import { CollectionDetailsPage } from '../collection-details/collection-details';
-import { ContentDetailsPage } from '../content-details/content-details';
-
-const KEY_SUNBIRD_SUPPORT_FILE_PATH = "sunbird_support_file_path";
+import { PopoverController } from 'ionic-angular/components/popover/popover-controller';
+import { IncompleteProfileData } from '../../component/card/incomplete-profile/incomplete-profile-data';
+import { TranslateService } from '@ngx-translate/core';
+import { ProfileConstants, ContentCard } from '../../app/app.constant';
 
 @Component({
   selector: 'page-home',
@@ -38,7 +28,7 @@ const KEY_SUNBIRD_SUPPORT_FILE_PATH = "sunbird_support_file_path";
   providers: [TelemetryService, AnnouncementService]
 
 })
-export class HomePage implements OnInit {
+export class HomePage {
 
   /**
    * Contains enrolled course
@@ -59,7 +49,23 @@ export class HomePage implements OnInit {
    */
   showLoader: boolean;
 
-  currentStyle = "ltr";
+  currentStyle = 'ltr';
+
+  /**
+   * Contains Profile Object
+   */
+  profile: any = {};
+
+  /**
+   * Flag to check if profile is incomplete
+   */
+  isProfileIncomplete = false;
+
+  profileProgress = '';
+
+  incompleteProfileData: IncompleteProfileData;
+
+  layoutInProgress = ContentCard.LAYOUT_INPROGRESS;
 
   /**
    * Default method of class CoursesPage
@@ -68,7 +74,7 @@ export class HomePage implements OnInit {
    * @param {HttpClient} http Reference of http client service to make api call
    */
 
-  logo: string = "assets/imgs/ic_logo.png";
+  logo = 'assets/imgs/ic_launcher.png';
 
   constructor(public navCtrl: NavController,
     private courseService: CourseService,
@@ -78,18 +84,19 @@ export class HomePage implements OnInit {
     private contentService: ContentService,
     private events: Events,
     public platform: Platform,
-    private pageService: PageAssembleService,
     private ngZone: NgZone,
     private userProfileService: UserProfileService,
     private qrScanner: SunbirdQRScanner,
-    private toastCtrl: ToastController
+    private toastCtrl: ToastController,
+    public popoverCtrl: PopoverController,
+    private translate: TranslateService
     // private storage: Storage
   ) {
     this.getUserId();
     // // TODO: remove this hardcodec id before pushing the code
     // this.userId = '659b011a-06ec-4107-84ad-955e16b0a48a';
     this.events.subscribe('genie.event', (response) => {
-      console.log("Result " + response);
+      console.log('Result ' + response);
     });
   }
   /**
@@ -105,22 +112,24 @@ export class HomePage implements OnInit {
    * It internally calls course handler of genie sdk
    */
   getEnrolledCourses(): void {
-    let option = {
+    const option = {
       userId: this.userId,
       refreshEnrolledCourses: false
     };
-    this.courseService.getEnrolledCourses(option, (data: any) => {
-      if (data) {
-        data = JSON.parse(data);
-        this.ngZone.run(() => {
-          this.enrolledCourse = data.result.courses ? data.result.courses : [];
-          this.spinner(false);
-        })
-      }
-    }, (error: any) => {
-      console.log('error while loading enrolled courses', error);
-      this.spinner(false);
-    });
+    this.courseService.getEnrolledCourses(option)
+      .then((data: any) => {
+        if (data) {
+          data = JSON.parse(data);
+          this.ngZone.run(() => {
+            this.enrolledCourse = data.result.courses ? data.result.courses : [];
+            this.spinner(false);
+          });
+        }
+      })
+      .catch((error: any) => {
+        console.log('error while loading enrolled courses', error);
+        this.spinner(false);
+      });
   }
 
   /**
@@ -130,7 +139,7 @@ export class HomePage implements OnInit {
    */
   getAnnouncementList(): void {
     console.log('making api call to Announcement list');
-    let option = {
+    const option = {
       limit: 2,
       offset: 1
     };
@@ -148,7 +157,7 @@ export class HomePage implements OnInit {
             });
           });
           this.spinner(false);
-        })
+        });
       }
     }, (error: any) => {
       console.log('error while loading  Announcement list', error);
@@ -166,7 +175,7 @@ export class HomePage implements OnInit {
   /**
    * Angular life cycle hooks
    */
-  ngOnInit() {
+  ionViewWillEnter() {
     console.log('ng oninit component initialized...');
     this.spinner(true);
     this.getUserId();
@@ -174,34 +183,28 @@ export class HomePage implements OnInit {
   }
 
   changeLanguage(event) {
-    if (this.currentStyle === "ltr") {
-      this.currentStyle = "rtl";
+    if (this.currentStyle === 'ltr') {
+      this.currentStyle = 'rtl';
     } else {
-      this.currentStyle = "ltr";
+      this.currentStyle = 'ltr';
     }
     this.platform.setDir(this.currentStyle as DocumentDirection, true);
   }
 
   ionViewDidLoad() {
     this.refreshTenantData();
-    (<any>window).supportfile.makeEntryInSunbirdSupportFile((result) => {
-      console.log("Result - " + JSON.parse(result));
-      // this.storage.set(KEY_SUNBIRD_SUPPORT_FILE_PATH, JSON.parse(result));
-    }, (error) => {
-      console.log("Error - " + error);
-    });
   }
 
   refreshTenantData() {
-    let request = new TenantInfoRequest();
+    const request = new TenantInfoRequest();
     request.refreshTenantInfo = true;
-    request.slug = "sunbird";
+    request.slug = 'sunbird';
     this.userProfileService.getTenantInfo(
       request,
       res => {
         this.ngZone.run(() => {
-          let r = JSON.parse(res);
-          this.logo = r["logo"];
+          const r = JSON.parse(res);
+          this.logo = r['logo'];
         });
       },
       error => {
@@ -211,111 +214,150 @@ export class HomePage implements OnInit {
   }
 
   onSyncClick() {
-    this.telemetryService.sync((response) => {
-      console.log("Telemetry Home : " + response);
-    }, (error) => {
-      console.log("Telemetry Home : " + error);
+    this.telemetryService.sync().then((response) => {
+      console.log('Telemetry Home : ' + response);
+    }).catch((error) => {
+      console.log('Telemetry Home : ' + error);
     });
     this.downloadContent();
   }
 
   downloadContent() {
-    let contentImport = new ContentImport();
+    const contentImport = new ContentImport();
 
-    contentImport.contentId = "do_2123823398249594881455"
-    contentImport.destinationFolder = "/storage/emulated/0/Android/data/org.sunbird.app/files";
+    contentImport.contentId = 'do_2123823398249594881455';
+    contentImport.destinationFolder = '/storage/emulated/0/Android/data/org.sunbird.app/files';
 
-    let contentImportRequest = new ContentImportRequest();
+    const contentImportRequest = new ContentImportRequest();
 
     contentImportRequest.contentImportMap = {
-      "do_2123823398249594881455": contentImport
-    }
-    console.log("Hello " + JSON.stringify(contentImportRequest));
-    this.contentService.importContent(contentImportRequest, (response) => {
-      console.log("Home : " + response);
-    }, (error) => {
-      console.log("Home : " + error);
+      'do_2123823398249594881455': contentImport
+    };
+    console.log('Hello ' + JSON.stringify(contentImportRequest));
+    this.contentService.importContent(contentImportRequest)
+    .then((response) => {
+      console.log('Home : ' + response);
+    }) .then((error) => {
+      console.log('Home : ' + error);
     });
   }
 
   search() {
     const contentType: Array<string> = [
-      "Story",
-      "Worksheet",
-      "Game",
-      "Collection",
-      "TextBook",
-      "Course",
-      "LessonPlan",
-      "Resource",
+      'Story',
+      'Worksheet',
+      'Game',
+      'Collection',
+      'TextBook',
+      'Course',
+      'LessonPlan',
+      'Resource',
     ];
 
-    this.navCtrl.push(SearchPage, { contentType: contentType,source :PageId.HOME})
+    this.navCtrl.push(SearchPage, { contentType: contentType, source: PageId.HOME });
   }
 
-   /**
-   * Get user id.
-   *
-   * Used to get enrolled course(s) of logged-in user
-   */
+  /**
+  * Get user id.
+  *
+  * Used to get enrolled course(s) of logged-in user
+  */
   getUserId(): void {
     this.authService.getSessionData((session) => {
       if (session === undefined || session == null) {
-        console.log('session expired')
+        console.log('session expired');
       } else {
-        let sessionObj = JSON.parse(session);
-        this.userId = sessionObj["userToken"];
-        this.getEnrolledCourses();
+        this.getProfileCompletionDetails(session);
       }
     });
   }
 
-  scanQRCode() {
-    const that = this;
-    const callback: QRResultCallback = {
-      dialcode(scanResult, dialCode) {
-        that.navCtrl.push(SearchPage, { dialCode: dialCode });
-      },
-      content(scanResult, contentId) {
-        // that.navCtrl.push(SearchPage);
-        let request: ContentDetailRequest = {
-          contentId: contentId
-        }
-        that.contentService.getContentDetail(request, (response)=> {
-          let data = JSON.parse(response);
-          that.showContentDetails(data.result);
-        }, (error)=> {
-          console.log("Error " + error);
-          let toast = that.toastCtrl.create({
-            message: "No content found associated with that QR code",
-            duration: 3000
-          })
+  getProfileCompletionDetails(session: any) {
+    const sessionObj = JSON.parse(session);
+    this.userId = sessionObj[ProfileConstants.USER_TOKEN];
 
-          toast.present();
+    const req: UserProfileDetailsRequest = {
+      userId:
+        this.userId && this.userId !== sessionObj[ProfileConstants.USER_TOKEN]
+          ? this.userId
+          : sessionObj[ProfileConstants.USER_TOKEN],
+      requiredFields: ProfileConstants.REQUIRED_FIELDS,
+      refreshUserProfileDetails: true
+    };
+
+    this.userProfileService.getUserProfileDetails(
+      req,
+      (res: any) => {
+        this.ngZone.run(() => {
+          const r = JSON.parse(res);
+          this.profile = r;
+          this.incompleteProfileData = new IncompleteProfileData();
+          this.formatProfileProgress();
+          this.getEnrolledCourses();
         });
+      },
+      (error: any) => {
+        console.error(error);
+        this.getEnrolledCourses();
       }
-    }
-
-    this.qrScanner.startScanner(undefined, undefined, undefined, callback,PageId.HOME);
+    );
   }
 
-  showContentDetails(content) {
-    if (content.contentType === 'Course') {
-      console.log('Calling course details page');
-      this.navCtrl.push(CourseDetailPage, {
-        content: content
-      })
-    } else if (content.mimeType === 'application/vnd.ekstep.content-collection') {
-      console.log('Calling collection details page');
-      this.navCtrl.push(CollectionDetailsPage, {
-        content: content
-      })
-    } else {
-      console.log('Calling content details page');
-      this.navCtrl.push(ContentDetailsPage, {
-        content: content
-      })
-    }
+  formatProfileProgress() {
+    this.profileProgress = String(this.profile.completeness);
+    this.incompleteProfileData.profileCompleteness = this.profileProgress;
+  }
+
+  completeProfile() {
+    // if (this.uncompletedDetails.page === 'picture') {
+    //   this.editPicture();
+    // } else {
+    //   this.navCtrl.push(this.uncompletedDetails.page, this.uncompletedDetails.data);
+    // }
+  }
+
+  /**
+    * Shows the pop up with current Image or open camera instead.
+     */
+  editPicture() {
+    // let popover = this.popoverCtrl.create(ImagePicker,
+    //   {
+    //     imageUri: this.imageUri,
+    //     profile: this.profile
+    //   });
+    // popover.present();
+  }
+
+  /**
+   *  Returns the Object with given Keys only
+   * @param {string} keys - Keys of the object which are required in new sub object
+   * @param {object} obj - Actual object
+   * @returns {object}
+   */
+  getSubset(keys, obj) {
+    return keys.reduce((a, c) => ({ ...a, [c]: obj[c] }), {});
+  }
+
+  scanQRCode() {
+    this.qrScanner.startScanner(PageId.HOME);
+  }
+
+
+  showMessage(message) {
+    const toast = this.toastCtrl.create({
+      message: message,
+      duration: 4000,
+      position: 'bottom'
+    });
+    toast.present();
+  }
+
+  getMessageByConst(constant) {
+    this.translate.get(constant).subscribe(
+      (value: any) => {
+        this.showMessage(value);
+      }
+    );
   }
 
 }

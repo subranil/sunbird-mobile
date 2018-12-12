@@ -1,32 +1,31 @@
-import { Impression, Interact, Start, Mode, Environment, End, Rollup } from "sunbird";
+import { Impression, Interact, Start, Mode, Environment, End, Rollup, CorrelationData } from 'sunbird';
 
-export function generateImpressionEvent(type, pageid, env, objectId, objectType, objectVersion): Impression {
-    let impression = new Impression();
+export const generateImpressionTelemetry = (type, subtype, pageid, env,
+    objectId, objectType, objectVersion,
+    rollup: Rollup,
+    corRelationList: Array<CorrelationData>): Impression => {
+
+    const impression = new Impression();
     impression.type = type;
+    impression.subType = subtype;
     impression.pageId = pageid;
     impression.env = env;
     impression.objId = objectId;
     impression.objType = objectType;
     impression.objVer = objectVersion;
-    return impression;
-}
 
-export function generateImpressionWithRollup(type, pageid, env, objectId, objectType, objectVersion, rollup: Rollup): Impression {
-    let impression = new Impression();
-    impression.type = type;
-    impression.pageId = pageid;
-    impression.env = env;
-    impression.objId = objectId;
-    impression.objType = objectType;
-    impression.objVer = objectVersion;
     if (rollup !== undefined) {
         impression.rollup = rollup;
     }
+    if (corRelationList !== undefined) {
+        impression.correlationData = corRelationList;
+    }
     return impression;
-}
+};
 
-export function generateInteractEvent(interactType, subType, env, pageId, values: Map): Interact {
-    let interact = new Interact();
+export const generateInteractTelemetry = (interactType, subType, env, pageId,
+    values: Map, rollup: Rollup, corRelationList: Array<CorrelationData>): Interact => {
+    const interact = new Interact();
     interact.type = interactType;
     interact.subType = subType;
     interact.pageId = pageId;
@@ -35,39 +34,18 @@ export function generateInteractEvent(interactType, subType, env, pageId, values
     if (values !== null) {
         interact.valueMap = values;
     }
-    return interact;
-}
-
-export function generateInteractWithRollup(interactType, subType, env, pageId, values: Map, rollup:Rollup): Interact {
-    let interact = new Interact();
-    interact.type = interactType;
-    interact.subType = subType;
-    interact.pageId = pageId;
-    interact.id = pageId;
-    interact.env = env;
-    if (values !== null) {
-        interact.valueMap = values;
+    if (rollup !== undefined) {
+        interact.rollup = rollup;
     }
-    if(rollup!==undefined){
-        interact.rollup=rollup;
+    if (corRelationList !== undefined) {
+        interact.correlationData = corRelationList;
     }
     return interact;
-}
+};
 
-export function generateStartEvent(pageId, objectId, objectType, objectVersion): Start {
-    let start = new Start();
-    start.type = objectType;
-    start.pageId = pageId;
-    start.env = Environment.HOME;
-    start.mode = Mode.PLAY;
-    start.objId = objectId;
-    start.objType = objectType;
-    start.objVer = objectVersion;
-    return start;
-}
-
-export function generateStartWithRollup(pageId, objectId, objectType, objectVersion, rollup: Rollup): Start {
-    let start = new Start();
+export const generateStartTelemetry = (pageId, objectId,
+    objectType, objectVersion, rollup: Rollup, corRelationList: Array<CorrelationData>): Start => {
+    const start = new Start();
     start.type = objectType;
     start.pageId = pageId;
     start.env = Environment.HOME;
@@ -78,23 +56,16 @@ export function generateStartWithRollup(pageId, objectId, objectType, objectVers
     if (rollup !== undefined) {
         start.rollup = rollup;
     }
+    if (corRelationList !== undefined) {
+        start.correlationData = corRelationList;
+    }
+
     return start;
-}
+};
 
-export function generateEndEvent(type, mode, pageId, objectId, objectType, objectVersion): End {
-    let end = new End();
-    end.type = type;
-    end.pageId = pageId;
-    end.env = Environment.HOME;
-    end.mode = mode;
-    end.objId = objectId;
-    end.objType = objectType;
-    end.objVer = objectVersion;
-    return end;
-}
-
-export function generateEndWithRollup(type, mode, pageId, objectId, objectType, objectVersion, rollup: Rollup): End {
-    let end = new End();
+export const generateEndTelemetry = (type, mode, pageId, objectId,
+    objectType, objectVersion, rollup: Rollup, corRelationList: Array<CorrelationData>): End => {
+    const end = new End();
     end.type = type;
     end.pageId = pageId;
     end.env = Environment.HOME;
@@ -103,11 +74,13 @@ export function generateEndWithRollup(type, mode, pageId, objectId, objectType, 
     end.objType = objectType;
     end.objVer = objectVersion;
     if (rollup !== undefined) {
-        end.rollup = rollup
+        end.rollup = rollup;
+    }
+    if (corRelationList !== undefined) {
+        end.correlationData = corRelationList;
     }
     return end;
-}
-
+};
 export class Map {
     [key: string]: any
 }

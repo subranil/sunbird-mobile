@@ -31,9 +31,16 @@ page-search {
 
   .divider {
     width: 100%;
-    height: 4px;
+    height: 6px;
     background-color: #f3f3f3;
     margin: 20px 0 0 0;
+  }
+
+  .inner-divider{
+    width: 90%;
+    height: 3px;
+    background-color: #f3f3f3;
+    margin:  0 5%;
   }
 
 
@@ -57,6 +64,13 @@ page-search {
       margin-right: 0 !important;
     }
   }
+  .dial-section-header{
+    @extend .NotoSans-bold;
+    font-size: 1.350em;
+    padding: 11px;
+    margin: 0;
+    background-color: #f3f3f3;
+  }
 
   .view-collection {
     margin: 0 !important;
@@ -64,31 +78,37 @@ page-search {
     font-size: 10px;
     right: 0 !important;
     text-transform: none;
+    span.button-inner{
+      color:#2E92FF;
+    }
+    
   }
 
   .collection-name {
     font-size: 14px;
     color: black;
-    font-weight: bold;
   }
 
     span {
       color: grey;
-      font-weight: 600;
+      @extend .font-weight-600;
       font-size: 1.3rem;
+    }
+    .cancel-btn span {
+      color: map-get($colors, white) !important;
     }
   .empty-search-result {
     font-size: 1.2em;
   }
   .item-md p {
     font-size: 1.3rem !important;
-    font-weight: 600 !important;
+    @extend .font-weight-600;
 }
 .item-md h3, {
   font-size: 1.5rem !important;
-  font-weight: 600 !important;
+  @extend .font-weight-600;
 }
-.ellipsis1{
+.ellipsis{
 
   overflow: hidden !important;
   text-overflow: ellipsis !important;
@@ -97,21 +117,44 @@ page-search {
 
 }
 .subject{
-  display:inline-block;
+
   color: grey;
-  font-weight: 600;
+  @extend .font-weight-600;
   font-size: 1.3rem;
-  vertical-align: middle;
-  padding-bottom: 11px;
+
 }
 .inline-block{
   display: inline-block;
 }
 .width{
 max-width: 60%;
+vertical-align: top;
 }
 // .list-md {
 //   margin: 16px 0 16px !important;
 // }
+
+  .loading-backdrop {
+    .backdrop-container {
+        width: 100%;
+        padding: 16px;
+        text-align: center;
+        position: absolute;
+        top: 50%;
+        margin-top: -50px;
+    }
+
+    .backdrop-footer {
+        position: absolute;
+        width: 100%;
+        bottom: 0;
+        padding-bottom: 16px;
+    }
+
+    background-color: #ffffff;
+    height: 100%;
+    z-index: 1000;
+    opacity: 1 !important;
+  }
 }
 

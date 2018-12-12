@@ -1,8 +1,16 @@
 course-card {
-
+    
+    height: 166px;
+    ion-card{
+        height: 100%;
+        .grid {
+            height: 100%;
+        }
+    }
     ion-card {
         width: 200px !important;
-        box-shadow: none !important
+        box-shadow: none !important;
+        background-color: unset !important;
     }
 
     .img-container, img {
@@ -22,7 +30,7 @@ course-card {
       position: absolute;
       bottom: 0%;
       color: #fff;
-      font-weight: 600;
+      @extend .font-weight-600;
       font-size: 1.5rem;
       width: 100%;
       padding-left:10px;
@@ -32,7 +40,7 @@ course-card {
     }
 
     .top-container {
-      height: 80%;
+      // height: 80%;
     }
 
     .bottom-container {
@@ -74,7 +82,7 @@ course-card {
     .badge-md-light{
       color: map-get($colors, light);;
       background-color: #1c1c1c;
-      font-weight: 400;
+      @extend .font-weight-400;
       font-size: xx-small;
     }
     .padding-top-8 {
@@ -89,5 +97,40 @@ course-card {
       background-position: center;
       margin-left: auto;
       margin-right: auto;
+    }
+
+    .course-progress {
+      position: absolute;
+      width: 100%;
+      
+      z-index: 10;
+
+      .progress-outer {
+        background-color: transparent !important;
+      }
+
+      .progress-inner {
+        min-width: unset !important;
+        padding: 2px !important;
+      }
+
+      .progress-inner-primary{
+        background-color: #FF9F00 !important;
+      }
+
+      .progress-inner-secondary {
+        background-color: #7ED321 !important;
+      }
+    }
+
+    .custom-small {
+      font-size: 1.2rem;
+    }
+
+    .grid-disabled {
+      opacity: 0.7;
+      ion-row{
+        opacity: 0.7;
+      }
     }
 }

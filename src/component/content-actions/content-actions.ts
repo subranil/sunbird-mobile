@@ -1,18 +1,15 @@
-import { CollectionDetailsPage } from './../../pages/collection-details/collection-details';
+import { TelemetryGeneratorService } from './../../service/telemetry-generator.service';
+import { TranslateService } from '@ngx-translate/core';
 import { NavParams } from 'ionic-angular/navigation/nav-params';
-import { NavController } from 'ionic-angular/index';
+ import { PopoverController, Events, AlertController } from 'ionic-angular/index';
 import { ViewController } from 'ionic-angular';
 import { Component } from '@angular/core';
-import { ContentService } from 'sunbird';
-import { ToastController } from "ionic-angular";
+import { ContentService, AuthService, Environment, Rollup, CorrelationData, InteractType, InteractSubtype, TelemetryObject } from 'sunbird';
+import { ToastController, Platform } from 'ionic-angular';
+import { CommonUtilService } from '../../service/common-util.service';
+import { ReportIssuesComponent } from '../report-issues/report-issues';
+import { ProfileConstants } from '../../app/app.constant';
 
-
-/**
- * Generated class for the ContentActionsComponent component.
- *
- * See https://angular.io/api/core/Component for more info on Angular
- * Components.
- */
 @Component({
   selector: 'content-actions',
   templateUrl: 'content-actions.html'
@@ -20,58 +17,180 @@ import { ToastController } from "ionic-angular";
 export class ContentActionsComponent {
 
   content: any;
-
-  isChild: boolean = false;
-
+  isChild = false;
   contentId: string;
+  backButtonFunc = undefined;
+  userId = '';
+  pageName = '';
+  showFlagMenu = true;
+  public objRollup: Rollup;
+  private corRelationList: Array<CorrelationData>;
 
-  constructor(public viewCtrl: ViewController, private contentService: ContentService,
-    private navCtrl: NavController, private navParams: NavParams, private toastCtrl: ToastController) {
-    this.content = this.navParams.get("content");
+  constructor(
+    public viewCtrl: ViewController,
+    private contentService: ContentService,
+    private navParams: NavParams,
+    private toastCtrl: ToastController,
+    public popoverCtrl: PopoverController,
+    private authService: AuthService,
+    private alertctrl: AlertController,
+    private events: Events,
+    private translate: TranslateService,
+    private platform: Platform,
+    private commonUtilService: CommonUtilService,
+    private telemetryGeneratorService: TelemetryGeneratorService) {
+    this.content = this.navParams.get('content');
+    this.pageName = this.navParams.get('pageName');
+    this.objRollup = this.navParams.get('objRollup');
+    this.corRelationList = this.navParams.get('corRelationList');
+
     if (this.navParams.get('isChild')) {
       this.isChild = true;
     }
 
-    this.contentId = this.content.identifier;
+    this.contentId = (this.content && this.content.identifier) ? this.content.identifier : '';
+    this.backButtonFunc = this.platform.registerBackButtonAction(() => {
+      this.viewCtrl.dismiss();
+      this.backButtonFunc();
+    }, 20);
+    this.getUserId();
   }
 
+  getUserId() {
+    this.authService.getSessionData((session: string) => {
+      if (session === null || session === 'null') {
+        this.userId = '';
+      } else {
+        const res = JSON.parse(session);
+        this.userId = res[ProfileConstants.USER_TOKEN] ? res[ProfileConstants.USER_TOKEN] : '';
+        // Needed: this get exeuted if user is on course details page.
+        if (this.pageName === 'course' && this.userId) {
+          // If course is not enrolled then hide flag/report issue menu.
+          // If course has batchId then it means it is enrolled course
+          if (this.content.batchId) {
+            this.showFlagMenu = true;
+          } else {
+            this.showFlagMenu = false;
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Construct content delete request body
+   */
   getDeleteRequestBody() {
-    let apiParams = {
+    const apiParams = {
       contentDeleteList: [{
         contentId: this.contentId,
         isChildContent: this.isChild
       }]
-    }
-    console.log('Delete api request....', apiParams);
+    };
     return apiParams;
   }
 
   /**
    * Close popover
    */
-  close(event, i) {
+  close(i) {
     switch (i) {
       case 0: {
-        console.log('Delete troggered', this.content);
-        this.contentService.deleteContent(this.getDeleteRequestBody(), (res: any) => {
-          console.log('success data', res);
-          this.viewCtrl.dismiss(i);
-        }, (error: any) => {
-          console.log('delete error', error);
-          this.viewCtrl.dismiss(1);
-        })
+        const confirm = this.alertctrl.create({
+          title:  this.commonUtilService.translateMessage('REMOVE_FROM_DEVICE'),
+          message: this.commonUtilService.translateMessage('REMOVE_FROM_DEVICE_MSG'),
+          mode: 'wp',
+          cssClass: 'confirm-alert',
+          buttons: [
+            {
+              text: this.commonUtilService.translateMessage('CANCEL'),
+              role: 'cancel',
+              cssClass: 'alert-btn-cancel',
+              handler: () => {
+                this.viewCtrl.dismiss();
+              }
+            },
+            {
+              text: this.commonUtilService.translateMessage('REMOVE'),
+              cssClass: 'alert-btn-delete',
+              handler: () => {
+                 this.deleteContent();
+              },
+            }
+          ]
+        });
+        confirm.present();
         break;
       }
       case 1: {
-        let toast = this.toastCtrl.create({
-          message: 'Report issue functionality is under progress',
-          duration: 3000,
-          position: 'bottom'
-        });
-        toast.present();
-        this.viewCtrl.dismiss(i);
+        this.viewCtrl.dismiss();
+        this.reportIssue();
         break;
       }
     }
+  }
+
+  deleteContent() {
+    const telemetryObject: TelemetryObject = new TelemetryObject();
+    telemetryObject.id = this.content.identifier;
+    telemetryObject.type = this.content.contentType;
+    telemetryObject.version = this.content.pkgVersion;
+    this.telemetryGeneratorService.generateInteractTelemetry(
+      InteractType.TOUCH,
+      InteractSubtype.DELETE_CLICKED,
+      Environment.HOME,
+      this.pageName,
+      telemetryObject,
+      undefined,
+      this.objRollup,
+      this.corRelationList);
+
+
+    this.contentService.deleteContent(this.getDeleteRequestBody()).then((res: any) => {
+      const data = JSON.parse(res);
+      if (data.result && data.result.status === 'NOT_FOUND') {
+        this.showToaster(this.getMessageByConstant('CONTENT_DELETE_FAILED'));
+      } else {
+        // Publish saved resources update event
+        this.events.publish('savedResources:update', {
+          update: true
+        });
+        console.log('delete response: ', data);
+        this.showToaster(this.getMessageByConstant('MSG_RESOURCE_DELETED'));
+        this.viewCtrl.dismiss('delete.success');
+      }
+    }) .catch((error: any) => {
+      console.log('delete response: ', error);
+      this.showToaster(this.getMessageByConstant('CONTENT_DELETE_FAILED'));
+      this.viewCtrl.dismiss();
+    });
+  }
+
+  reportIssue() {
+    const popUp = this.popoverCtrl.create(ReportIssuesComponent, {
+      content: this.content
+    }, {
+        cssClass: 'report-issue-box'
+      });
+    popUp.present();
+  }
+
+  showToaster(message) {
+    const toast = this.toastCtrl.create({
+      message: message,
+      duration: 2000,
+      position: 'bottom'
+    });
+    toast.present();
+  }
+
+  getMessageByConstant(constant: string) {
+    let msg = '';
+    this.translate.get(constant).subscribe(
+      (value: any) => {
+        msg = value;
+      }
+    );
+    return msg;
   }
 }

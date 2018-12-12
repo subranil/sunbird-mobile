@@ -1,143 +1,160 @@
+import { AppGlobalService } from '@app/service';
+import { CommonUtilService } from './../../service/common-util.service';
 import { Component } from '@angular/core';
-import { NavController, LoadingController} from "ionic-angular";
+import { NavController, DateTime } from 'ionic-angular';
 import { DatasyncPage } from './datasync/datasync';
 import { LanguageSettingsPage } from '../language-settings/language-settings';
 import { AboutUsPage } from './about-us/about-us';
 import { SocialSharing } from '@ionic-native/social-sharing';
 import { TranslateService } from '@ngx-translate/core';
-import { AppVersion } from "@ionic-native/app-version";
-import { SharedPreferences, Interact, InteractType, InteractSubtype, ShareUtil } from "sunbird";
-import { Impression, ImpressionType, Environment, PageId, TelemetryService } from 'sunbird';
-import { generateInteractEvent } from '../../app/telemetryutil';
+import { AppVersion } from '@ionic-native/app-version';
+import {
+  SharedPreferences,
+  InteractType,
+  InteractSubtype,
+  ShareUtil,
+  Impression,
+  ImpressionType,
+  Environment,
+  PageId,
+  DeviceInfoService,
+  TelemetryService
+} from 'sunbird';
+import { generateInteractTelemetry, generateImpressionTelemetry } from '../../app/telemetryutil';
+import { PreferenceKey } from '../../app/app.constant';
 
-const KEY_SELECTED_LANGUAGE = "selected_language";
-const KEY_SUNBIRD_SUPPORT_FILE_PATH = "sunbird_support_file_path";
+const KEY_SUNBIRD_CONFIG_FILE_PATH = 'sunbird_config_file_path';
+const SUBJECT_NAME = 'Details:';
 
 @Component({
   selector: 'settings',
   templateUrl: 'settings.html'
 })
 export class SettingsPage {
-  chosenLanguageString: String;
-  selectedlanguage: String;
+  chosenLanguageString: string;
+  selectedLanguage: string;
   fileUrl: string;
+  deviceId: string;
+  subjectDetails: string;
   shareAppLabel: string;
 
-  constructor(private navCtrl: NavController, private appVersion: AppVersion,
+  constructor(
+    private navCtrl: NavController,
+    private appVersion: AppVersion,
     private socialSharing: SocialSharing,
     private translate: TranslateService,
+    private deviceInfoService: DeviceInfoService,
     private preference: SharedPreferences,
-    private telemetryService : TelemetryService,
+    private telemetryService: TelemetryService,
     private shareUtil: ShareUtil,
-    private loadingCtrl: LoadingController) {
-
-  }
+    private commonUtilService: CommonUtilService,
+    private appGlobalService: AppGlobalService
+  ) { }
 
   ionViewWillEnter() {
-    this.translate.get('SHARE_APP').subscribe(
-      value => {
-        this.appVersion.getAppName()
-        .then((appName: any) => {
-          //TODO: Need to add dynamic string substitution
-          this.shareAppLabel = value.replace("{{%s}}", appName);
-        });
-      }
-    );
+    this.appVersion.getAppName()
+      .then((appName) => {
+        this.shareAppLabel = this.commonUtilService.translateMessage('SHARE_APP', appName);
+      });
   }
 
+  ionViewDidLoad() {
+    const impression = new Impression();
+    impression.type = ImpressionType.VIEW;
+    impression.pageId = PageId.SETTINGS;
+    impression.env = Environment.SETTINGS;
+    this.telemetryService.impression(generateImpressionTelemetry(
+      ImpressionType.VIEW, '',
+      PageId.SETTINGS,
+      Environment.SETTINGS, '', '', '',
+      undefined,
+      undefined
+    ));
+  }
 
   ionViewDidEnter() {
-    this.generateImpressionEvent();
-    this.translate.get('CURRENT_LANGUAGE').subscribe(
-      value => {
-        this.chosenLanguageString = value;
-        this.preference.getString(KEY_SELECTED_LANGUAGE, value => {
-          this.selectedlanguage = this.chosenLanguageString + ': ' + value;
-        });
-      }
-    );
+    this.chosenLanguageString = this.commonUtilService.translateMessage('CURRENT_LANGUAGE');
+    this.preference.getString(PreferenceKey.SELECTED_LANGUAGE)
+      .then(value => {
+        this.selectedLanguage = `${this.chosenLanguageString} : ${value}`;
+      });
   }
 
-  generateImpressionEvent(){
-    let impression = new Impression();
-    impression.type =ImpressionType.VIEW;
-    impression.pageId = PageId.SETTINGS;
-    impression.env=Environment.SETTINGS;
-    this.telemetryService.impression(impression);
+  ionViewDidLeave() {
+    (<any>window).supportfile.removeFile(
+      result => ({}),
+      error => {
+        console.error('error' + error);
+      });
   }
 
-  goBack() {
-    this.navCtrl.pop();
-  }
-
-  languageSetting() {
-    this.generateInteractTelemetry(InteractType.TOUCH,InteractSubtype.LANGUAGE_CLICKED);
+  goToLanguageSetting() {
+    this.generateInteractTelemetry(InteractType.TOUCH, InteractSubtype.LANGUAGE_CLICKED);
     this.navCtrl.push(LanguageSettingsPage, {
       isFromSettings: true
     });
   }
 
   dataSync() {
-    this.generateInteractTelemetry(InteractType.TOUCH,InteractSubtype.DATA_SYNC_CLICKED);
-    this.navCtrl.push(DatasyncPage)
+    this.generateInteractTelemetry(InteractType.TOUCH, InteractSubtype.DATA_SYNC_CLICKED);
+    this.navCtrl.push(DatasyncPage);
   }
 
   aboutUs() {
-    this.generateInteractTelemetry(InteractType.TOUCH,InteractSubtype.ABOUT_APP_CLICKED);
-    this.navCtrl.push(AboutUsPage)
+    this.generateInteractTelemetry(InteractType.TOUCH, InteractSubtype.ABOUT_APP_CLICKED);
+    this.navCtrl.push(AboutUsPage);
   }
 
   sendMessage() {
-    let loader = this.getLoader();
-    loader.present();
-    this.generateInteractTelemetry(InteractType.TOUCH,InteractSubtype.SUPPORT_CLICKED);
-    this.preference.getString(KEY_SUNBIRD_SUPPORT_FILE_PATH, val => {
-      loader.dismiss();
-      if (val === undefined || val === "" || val === null) {
-        //do nothing
-      } else {
-        this.fileUrl = "file://" + val;
-        // Share via email
-        this.socialSharing.shareViaEmail('', '', ['support@diksha.gov.in'], null, null, this.fileUrl).then(() => {
-          console.log("Share is possible");
-        }).catch(error => {
-          console.log("Share is not possible");
-          console.log(error);
-          // Error!
-        });
-      }
+    this.generateInteractTelemetry(InteractType.TOUCH, InteractSubtype.SUPPORT_CLICKED);
+    this.deviceInfoService.getDeviceID().then((res: any) => {
+      this.deviceId = res;
+    }).catch((error: any) => {
     });
-
+    (<any>window).supportfile.shareSunbirdConfigurations((result) => {
+      const loader = this.commonUtilService.getLoader();
+      loader.present();
+      this.preference.putString(KEY_SUNBIRD_CONFIG_FILE_PATH, JSON.parse(result));
+      this.preference.getString(KEY_SUNBIRD_CONFIG_FILE_PATH)
+        .then(val => {
+          loader.dismiss();
+          if (Boolean(val)) {
+            this.fileUrl = 'file://' + val;
+            this.subjectDetails = SUBJECT_NAME + this.deviceId + '_' + Date.now();
+            this.socialSharing.shareViaEmail('', this.subjectDetails, [this.appGlobalService.SUPPORT_EMAIL], null, null, this.fileUrl)
+              .catch(error => {
+                console.error(error);
+              });
+          }
+        });
+    }, (error) => {
+      console.error('ERROR - ' + error);
+    });
   }
 
   shareApp() {
-    let loader = this.getLoader();
+    const loader = this.commonUtilService.getLoader();
     loader.present();
 
-    this.generateInteractTelemetry(InteractType.TOUCH,InteractSubtype.SHARE_APP_CLICKED);
-    this.generateInteractTelemetry(InteractType.TOUCH,InteractSubtype.SHARE_APP_INITIATED);
+    this.generateInteractTelemetry(InteractType.TOUCH, InteractSubtype.SHARE_APP_CLICKED);
+    this.generateInteractTelemetry(InteractType.TOUCH, InteractSubtype.SHARE_APP_INITIATED);
 
     this.shareUtil.exportApk(filePath => {
-      this.generateInteractTelemetry(InteractType.OTHER,InteractSubtype.SHARE_APP_SUCCESS);
+      this.generateInteractTelemetry(InteractType.OTHER, InteractSubtype.SHARE_APP_SUCCESS);
       loader.dismiss();
-      this.socialSharing.share("", "", "file://" + filePath, "");
+      this.socialSharing.share('', '', 'file://' + filePath, '');
     }, error => {
       loader.dismiss();
     });
   }
 
-  getLoader(): any {
-    return this.loadingCtrl.create({
-      duration: 30000,
-      spinner: "crescent"
-    });
-  }
-
   generateInteractTelemetry(interactionType, interactSubtype) {
-    this.telemetryService.interact(generateInteractEvent(
-      interactionType,interactSubtype,
+    this.telemetryService.interact(generateInteractTelemetry(
+      interactionType, interactSubtype,
       PageId.SETTINGS,
-      Environment.SETTINGS,null
+      Environment.SETTINGS, null,
+      undefined,
+      undefined
     ));
   }
 }

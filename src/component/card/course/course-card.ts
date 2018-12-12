@@ -1,11 +1,19 @@
-import { PipesModule } from './../../../pipes/pipes.module';
-import { Component, Input } from "@angular/core";
-import { NavController } from 'ionic-angular';
-import { ImageLoader } from "ionic-image-loader";
-import { EnrolledCourseDetailsPage } from "../../../pages/enrolled-course-details/enrolled-course-details";
-import { CourseDetailPage } from './../../../pages/course-detail/course-detail';
+import {
+  Component,
+  Input,
+  OnInit
+} from '@angular/core';
+import {
+  NavController,
+  Events
+} from 'ionic-angular';
+import { EnrolledCourseDetailsPage } from '../../../pages/enrolled-course-details/enrolled-course-details';
 import { CollectionDetailsPage } from '../../../pages/collection-details/collection-details';
 import { ContentDetailsPage } from '../../../pages/content-details/content-details';
+import { ContentType, MimeType, ContentCard, PreferenceKey } from '../../../app/app.constant';
+import { CourseUtilService } from '../../../service/course-util.service';
+import { TelemetryGeneratorService } from '../../../service/telemetry-generator.service';
+import { InteractType, InteractSubtype, TelemetryObject, SharedPreferences } from 'sunbird';
 
 /**
  * The course card component
@@ -14,7 +22,7 @@ import { ContentDetailsPage } from '../../../pages/content-details/content-detai
   selector: 'course-card',
   templateUrl: 'course-card.html'
 })
-export class CourseCard {
+export class CourseCard implements OnInit {
 
   /**
    * Contains course details
@@ -24,13 +32,24 @@ export class CourseCard {
   /**
    * Contains layout name
    *
-   * @example layoutName = Inprogress / popular 
+   * @example layoutName = Inprogress / popular
    */
   @Input() layoutName: string;
 
   @Input() pageName: string;
 
-  @Input() onProfile: boolean = false;
+  @Input() onProfile = false;
+
+  @Input() index: number;
+
+  @Input() sectionName: string;
+
+  @Input() env: string;
+
+  /**
+   * To show card as disbled or Greyed-out when device is offline
+   */
+  @Input() cardDisabled = false;
 
   /**
    * Contains default image path.
@@ -39,48 +58,101 @@ export class CourseCard {
    */
   defaultImg: string;
 
+  layoutInProgress = ContentCard.LAYOUT_INPROGRESS;
+  layoutPopular = ContentCard.LAYOUT_POPULAR;
+  layoutSavedContent = ContentCard.LAYOUT_SAVED_CONTENT;
+
   /**
    * Default method of class CourseCard
-   * 
+   *
    * @param navCtrl To navigate user from one page to another
    */
-  constructor(public navCtrl: NavController) {
+  constructor(public navCtrl: NavController,
+    private courseUtilService: CourseUtilService,
+    private events: Events,
+    private telemetryGeneratorService: TelemetryGeneratorService,
+    private preference: SharedPreferences) {
     this.defaultImg = 'assets/imgs/ic_launcher.png';
   }
 
   /**
    * Navigate to the course/content details page
-   * 
-   * @param {string} layoutName 
-   * @param {object} content 
+   *
+   * @param {string} layoutName
+   * @param {object} content
    */
-  navigateToCourseDetailPage(content: any, layoutName: string): void {
-    console.log('Card details... @@@', content);
-    if (layoutName === 'Inprogress') {
+  navigateToDetailPage(content: any, layoutName: string): void {
+    const identifier = content.contentId || content.identifier;
+    const telemetryObject: TelemetryObject = new TelemetryObject();
+    telemetryObject.id = identifier;
+    if (layoutName === this.layoutInProgress) {
+      telemetryObject.type = ContentType.COURSE;
+    } else {
+      telemetryObject.type = this.isResource(content.contentType) ? ContentType.RESOURCE : content.contentType;
+    }
+
+
+    const values = new Map();
+    values['sectionName'] = this.sectionName;
+    values['positionClicked'] = this.index;
+
+    this.telemetryGeneratorService.generateInteractTelemetry(InteractType.TOUCH,
+      InteractSubtype.CONTENT_CLICKED,
+      this.env,
+      this.pageName ? this.pageName : this.layoutName,
+      telemetryObject,
+      values);
+    if (layoutName === this.layoutInProgress || content.contentType === ContentType.COURSE) {
+      this.saveContentContext(content);
       this.navCtrl.push(EnrolledCourseDetailsPage, {
         content: content
-      })
+      });
+    } else if (content.mimeType === MimeType.COLLECTION) {
+      this.navCtrl.push(CollectionDetailsPage, {
+        content: content
+      });
     } else {
-      if (content.contentType === 'Course') {
-        console.log('Inside course details page');
-        this.navCtrl.push(CourseDetailPage, {
-          content: content
-        })
-      } else if (content.mimeType === 'application/vnd.ekstep.content-collection') {
-        console.log('Inside CollectionDetailsPage');
-        this.navCtrl.push(CollectionDetailsPage, {
-          content: content
-        })
-      } else {
-        console.log('Inside ContentDetailsPage');
-        this.navCtrl.push(ContentDetailsPage, {
-          content: content
-        })
-      }
+      this.navCtrl.push(ContentDetailsPage, {
+        content: content
+      });
     }
   }
 
-  onImageLoad(imgLoader: ImageLoader) {
-    console.log("Image Loader " + imgLoader.nativeAvailable);
+  isResource(contentType) {
+    return contentType === ContentType.STORY ||
+      contentType === ContentType.WORKSHEET;
+  }
+
+  resumeCourse(content: any) {
+    this.saveContentContext(content);
+    if (content.lastReadContentId && content.status === 1) {
+      this.events.publish('course:resume', {
+        content: content
+      });
+    } else {
+      this.navCtrl.push(EnrolledCourseDetailsPage, {
+        content: content
+      });
+    }
+  }
+
+  ngOnInit() {
+    if (this.layoutName === this.layoutInProgress) {
+      this.course.cProgress = (this.courseUtilService.getCourseProgress(this.course.leafNodesCount, this.course.progress));
+      this.course.cProgress = parseInt(this.course.cProgress, 10);
+    }
+  }
+
+
+  saveContentContext(content: any) {
+    const contentContextMap = new Map();
+    // store content context in the below map
+    contentContextMap['userId'] = content.userId;
+    contentContextMap['courseId'] = content.courseId;
+    contentContextMap['batchId'] = content.batchId;
+
+    // store the contentContextMap in shared preference and access it from SDK
+    this.preference.putString(PreferenceKey.CONTENT_CONTEXT, JSON.stringify(contentContextMap));
   }
 }
+

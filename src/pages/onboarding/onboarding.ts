@@ -1,154 +1,233 @@
-import { Component, NgZone } from '@angular/core';
-import { NavController, LoadingController } from 'ionic-angular';
-import { TabsPage, OAuthService, ContainerService, UserProfileService, ProfileService, Profile, ProfileType, AuthService, TenantInfoRequest, Interact, InteractType, InteractSubtype, Environment, TelemetryService, PageId, ImpressionType, SharedPreferences } from 'sunbird';
-import { UserTypeSelectionPage } from '../user-type-selection/user-type-selection';
+import { FormAndFrameworkUtilService } from './../profile/formandframeworkutil.service';
+import {
+  Component,
+  ViewChild
+} from '@angular/core';
+import {
+  NavController,
+  LoadingController,
+  Navbar,
+  Platform,
+  Events
+} from 'ionic-angular';
+import { AppVersion } from '@ionic-native/app-version';
+import {
+  TabsPage,
+  OAuthService,
+  ContainerService,
+  UserProfileService,
+  ProfileService,
+  ProfileType,
+  AuthService,
+  TenantInfoRequest,
+  InteractType,
+  InteractSubtype,
+  Environment,
+  PageId,
+  ImpressionType,
+  SharedPreferences,
+  UserSource,
+  Profile
+} from 'sunbird';
 
-import { initGuestTabs, initUserTabs } from '../../app/module.service';
-import { generateInteractEvent, Map, generateImpressionEvent } from '../../app/telemetryutil';
+import { UserTypeSelectionPage } from '@app/pages/user-type-selection';
+import {
+  initTabs,
+  GUEST_STUDENT_TABS,
+  GUEST_TEACHER_TABS,
+  LOGIN_TEACHER_TABS,
+  Map,
+  ProfileConstants,
+  PreferenceKey
+} from '@app/app';
+import { LanguageSettingsPage } from '@app/pages/language-settings/language-settings';
+import { AppGlobalService, TelemetryGeneratorService, CommonUtilService } from '@app/service';
+import { CategoriesEditPage } from '../categories-edit/categories-edit';
 
 @Component({
   selector: 'page-onboarding',
   templateUrl: 'onboarding.html',
 })
 export class OnboardingPage {
+  @ViewChild(Navbar) navBar: Navbar;
 
   slides: any[];
-  sunbird: string = "SUNBIRD";
+  appDir: string;
+  appName = '';
+  orgName: string;
+  backButtonFunc: any = undefined;
 
-  constructor(public navCtrl: NavController,
+  constructor(
+    public navCtrl: NavController,
     private auth: OAuthService,
     private container: ContainerService,
-    private zone: NgZone,
     private userProfileService: UserProfileService,
     private profileService: ProfileService,
     private authService: AuthService,
-    private telemetryService: TelemetryService,
     private loadingCtrl: LoadingController,
-    private preferences: SharedPreferences
+    private preferences: SharedPreferences,
+    private platform: Platform,
+    private commonUtilService: CommonUtilService,
+    private appVersion: AppVersion,
+    private events: Events,
+    private appGlobalService: AppGlobalService,
+    private telemetryGeneratorService: TelemetryGeneratorService,
+    private formAndFrameworkUtilService: FormAndFrameworkUtilService
   ) {
 
     this.slides = [
-      {
-        'title': 'ONBOARD_SLIDE_TITLE_1',
-        'imageUri': 'assets/imgs/ic_onboard_1.png',
-        'desc': 'ONBOARD_SLIDE_DESC_1'
-      },
       {
         'title': 'ONBOARD_SLIDE_TITLE_2',
         'imageUri': 'assets/imgs/ic_onboard_2.png',
         'desc': 'ONBOARD_SLIDE_DESC_2'
       },
       {
+        'title': 'ONBOARD_SLIDE_TITLE_1',
+        'imageUri': 'assets/imgs/ic_onboard_1.png',
+        'desc': 'ONBOARD_SLIDE_DESC_1'
+      }
+      /*{
         'title': 'ONBOARD_SLIDE_TITLE_3',
         'imageUri': 'assets/imgs/ic_onboard_3.png',
         'desc': 'ONBOARD_SLIDE_DESC_3'
-      },
-    ]
+      }*/
+    ];
   }
 
   ionViewDidLoad() {
-    console.log('ionViewDidLoad OnboardingPage');
+    this.appVersion.getAppName()
+      .then((appName: any) => {
+        this.appName = appName;
+      });
+    this.navBar.backButtonClick = (e: UIEvent) => {
+      this.telemetryGeneratorService.generateBackClickedTelemetry(PageId.ONBOARDING, Environment.HOME, true);
+      this.navCtrl.setRoot(LanguageSettingsPage);
+    };
+    this.telemetryGeneratorService.generateImpressionTelemetry(
+      ImpressionType.VIEW, '',
+      PageId.ONBOARDING,
+      Environment.HOME);
   }
 
-  ionViewDidEnter() {
-    this.telemetryService.impression(
-      generateImpressionEvent(ImpressionType.VIEW,
-        PageId.ONBOARDING,
-        Environment.HOME, "", "", "")
-    );
+  ionViewWillEnter() {
+    this.backButtonFunc = this.platform.registerBackButtonAction(() => {
+      this.telemetryGeneratorService.generateBackClickedTelemetry(PageId.ONBOARDING, Environment.HOME, false);
+      this.backButtonFunc();
+      this.navCtrl.setRoot(LanguageSettingsPage);
+    }, 10);
+
+    this.appDir = this.commonUtilService.getAppDirection();
   }
+
+  ionViewWillLeave() {
+    this.backButtonFunc();
+  }
+
 
   getLoader(): any {
     return this.loadingCtrl.create({
-      spinner: "crescent"
+      spinner: 'crescent'
     });
   }
 
-  singIn() {
-    let that = this;
-    let loader = this.getLoader();
+  signIn() {
+    const that = this;
+    const loader = this.getLoader();
     loader.present();
 
     this.generateLoginInteractTelemetry(InteractType.TOUCH,
-      InteractSubtype.LOGIN_INITIATE, "");
+      InteractSubtype.LOGIN_INITIATE, '');
     that.auth.doOAuthStepOne()
       .then(token => {
         return that.auth.doOAuthStepTwo(token);
       })
       .then(() => {
-
-        initUserTabs(that.container);
+        // initTabs(that.container, LOGIN_TEACHER_TABS);
         return that.refreshProfileData();
       })
       .then(slug => {
+        this.events.publish(AppGlobalService.USER_INFO_UPDATED);
         return that.refreshTenantData(slug);
       })
       .then(() => {
         loader.dismiss();
-        that.navCtrl.push(TabsPage);
+        that.navCtrl.setRoot(TabsPage);
       })
       .catch(error => {
         loader.dismiss();
         console.log(error);
       });
-
   }
 
   refreshTenantData(slug: string) {
+    const that = this;
     return new Promise((resolve, reject) => {
-      let request = new TenantInfoRequest();
+      const request = new TenantInfoRequest();
       request.refreshTenantInfo = true;
       request.slug = slug;
       this.userProfileService.getTenantInfo(
         request,
         res => {
-          let r = JSON.parse(res);
-          (<any>window).splashscreen.setContent(r.titleName, r.logo);
+          const r = JSON.parse(res);
+          (<any>window).splashscreen.setContent(that.orgName, r.logo);
           resolve();
         },
         error => {
-          resolve();//ignore
-        })
+          resolve(); // ignore
+        });
     });
   }
 
   refreshProfileData() {
+    const that = this;
     return new Promise<string>((resolve, reject) => {
-      this.authService.getSessionData((session) => {
+      that.authService.getSessionData((session) => {
         if (session === undefined || session == null) {
-          reject("session is null");
+          reject('session is null');
         } else {
-          let sessionObj = JSON.parse(session);
-          let req = {
-            userId: sessionObj["userToken"],
-            requiredFields: ["completeness", "missingFields", "lastLoginTime", "topics"],
+          const sessionObj = JSON.parse(session);
+          const req = {
+            userId: sessionObj[ProfileConstants.USER_TOKEN],
+            requiredFields: ProfileConstants.REQUIRED_FIELDS,
             refreshUserProfileDetails: true
           };
-          this.userProfileService.getUserProfileDetails(req, res => {
-            let r = JSON.parse(res);
-            this.generateLoginInteractTelemetry(InteractType.OTHER,
-              InteractSubtype.LOGIN_SUCCESS, r.response.userId);
-            let profileRequest = {
-              uid: r.response.userId, //req
-              handle: r.response.userId, //TODO check with nikhil
-              avatar: "avatar", //req
-              language: "en", //req
-              age: -1,
-              day: -1,
-              month: -1,
-              standard: -1,
-              profileType: ProfileType.TEACHER
-            };
-            this.profileService.setCurrentProfile(false, profileRequest,
-              (res: any) => {
-                //TODO: Do we need to ignore or use, check with nikhil
-                resolve(r.response.rootOrg.slug);
-              },
-              (err: any) => {
+          that.userProfileService.getUserProfileDetails(req, res => {
+            const r = JSON.parse(res);
+            setTimeout(() => {
+              this.commonUtilService.showToast(this.commonUtilService.translateMessage('WELCOME_BACK', r.firstName));
+            }, 800);
+
+            that.generateLoginInteractTelemetry(InteractType.OTHER, InteractSubtype.LOGIN_SUCCESS, r.userId);
+
+            const profile: Profile = new Profile();
+            profile.uid = r.id;
+            profile.handle = r.id;
+            profile.profileType = ProfileType.TEACHER;
+            profile.source = UserSource.SERVER;
+
+
+            that.profileService.setCurrentProfile(false, profile)
+              .then((response: any) => {
+                this.formAndFrameworkUtilService.updateLoggedInUser(r, profile)
+                .then( (value) => {
+                  that.orgName = r.rootOrg.orgName;
+                  if (value['status']) {
+                    initTabs(that.container, LOGIN_TEACHER_TABS);
+                    resolve(r.rootOrg.slug);
+                  } else {
+                    that.navCtrl.setRoot(CategoriesEditPage, {showOnlyMandatoryFields: true, profile: value['profile']});
+                    reject();
+                  }
+                  // that.orgName = r.rootOrg.orgName;
+                  // resolve(r.rootOrg.slug);
+                }).catch( () => {
+                  that.orgName = r.rootOrg.orgName;
+                  resolve(r.rootOrg.slug);
+                });
+              })
+              .catch((err: any) => {
                 reject(err);
               });
-
-            resolve(r.response.rootOrg.slug);
           }, error => {
             reject(error);
             console.error(error);
@@ -159,54 +238,57 @@ export class OnboardingPage {
   }
 
   browseAsGuest() {
-    this.telemetryService.interact(
-      generateInteractEvent(InteractType.TOUCH,
-        InteractSubtype.BROWSE_AS_GUEST_CLICKED,
-        Environment.HOME,
-        PageId.ONBOARDING,
-        null));
-    initGuestTabs(this.container);
-    this.preferences.getString('GUEST_USER_ID_BEFORE_LOGIN', (val) => {
-      if (val != "") {
-        let profileRequest = {
-          uid: val,
-          handle: "Guest1", //req
-          avatar: "avatar", //req
-          language: "en", //req
-          age: -1,
-          day: -1,
-          month: -1,
-          standard: -1,
-          profileType: ProfileType.TEACHER
-        };
-        this.profileService.setCurrentProfile(true, profileRequest, res => {
-          this.navCtrl.push(TabsPage, {
-            loginMode: 'guest'
+    this.telemetryGeneratorService.generateInteractTelemetry(
+      InteractType.TOUCH,
+      InteractSubtype.BROWSE_AS_GUEST_CLICKED,
+      Environment.HOME,
+      PageId.ONBOARDING);
+    this.preferences.getString(PreferenceKey.SELECTED_USER_TYPE)
+      .then(val => {
+        if (val === ProfileType.STUDENT) {
+          initTabs(this.container, GUEST_STUDENT_TABS);
+        } else if (val === ProfileType.TEACHER) {
+          initTabs(this.container, GUEST_TEACHER_TABS);
+        }
+      });
+    this.preferences.getString('GUEST_USER_ID_BEFORE_LOGIN')
+      .then(val => {
+        if (val !== '') {
+          const profile: Profile = new Profile();
+          profile.uid = val;
+          profile.handle = 'Guest1';
+          profile.profileType = ProfileType.TEACHER;
+          profile.source = UserSource.LOCAL;
+
+          this.profileService.setCurrentProfile(true, profile).then(res => {
+            this.events.publish(AppGlobalService.USER_INFO_UPDATED);
+
+            if (this.appGlobalService.isProfileSettingsCompleted) {
+              this.navCtrl.setRoot(TabsPage, {
+                loginMode: 'guest'
+              });
+            } else {
+              this.navCtrl.push(UserTypeSelectionPage);
+            }
+          }).catch(err => {
+            this.navCtrl.push(UserTypeSelectionPage);
           });
-        }, err => {
+        } else {
           this.navCtrl.push(UserTypeSelectionPage);
-        });
-      } else {
-        this.navCtrl.push(UserTypeSelectionPage);
-      }
-    });
+        }
+      });
   }
-
-
 
   generateLoginInteractTelemetry(interactType, interactSubtype, uid) {
-    let valuesMap = new Map();
-    valuesMap["UID"] = uid;
-    this.telemetryService.interact(
-      generateInteractEvent(interactType,
-        interactSubtype,
-        Environment.HOME,
-        PageId.LOGIN,
-        valuesMap));
+    const valuesMap = new Map();
+    valuesMap['UID'] = uid;
+    this.telemetryGeneratorService.generateInteractTelemetry(
+      interactType,
+      interactSubtype,
+      Environment.HOME,
+      PageId.LOGIN,
+      undefined,
+      valuesMap);
   }
-
-  /*   goBack() {
-      this.navCtrl.pop();
-    } */
 
 }

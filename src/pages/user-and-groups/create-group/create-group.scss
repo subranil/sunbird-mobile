@@ -1,0 +1,9 @@
+page-create-group {
+    .mandatory {
+        color: map-get($colors, red);
+    }
+
+    .label-font {
+       @extend .font-weight-600;
+    }
+}

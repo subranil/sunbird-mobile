@@ -1,7 +1,28 @@
-import { Component, NgZone, OnInit } from '@angular/core';
-import { CourseService, AuthService, EnrolledCoursesRequest } from 'sunbird';
-import { IonicPage, NavController, NavParams, ToastController } from 'ionic-angular';
+import {
+  Component,
+  NgZone,
+  OnInit
+} from '@angular/core';
+import {
+  CourseService,
+  AuthService,
+  CourseBatchesRequest,
+  CourseBatchStatus,
+  CourseEnrollmentType,
+  EnrollCourseRequest
+} from 'sunbird';
+import {
+  IonicPage,
+  NavController,
+  NavParams,
+  Events
+} from 'ionic-angular';
 import * as _ from 'lodash';
+import {
+  ProfileConstants,
+  EventTopics
+} from '../../app/app.constant';
+import { CommonUtilService } from '../../service/common-util.service';
 
 /**
  * Generated class for the CourseBatchesPage page.
@@ -9,7 +30,6 @@ import * as _ from 'lodash';
  * See https://ionicframework.com/docs/components/#navigation for more info on
  * Ionic pages and navigation.
  */
-
 @IonicPage()
 @Component({
   selector: 'page-course-batches',
@@ -21,11 +41,6 @@ export class CourseBatchesPage implements OnInit {
    * Contains user id
    */
   userId: string;
-
-  /**
-   * Contains tab bar element ref
-   */
-  tabBarElement: any;
 
   /**
    * To hold course indentifier
@@ -50,7 +65,12 @@ export class CourseBatchesPage implements OnInit {
   /**
    * Flag to check guest user
    */
-  isGuestUser: boolean = false;
+  isGuestUser = false;
+
+  filterList: any = {
+    'ONGOING': 'VIEW_ONGOING_BATCHES',
+    'UPCOMING': 'VIEW_UPCOMING_BATCHES'
+  };
 
   /**
    * Contains batches list
@@ -58,79 +78,72 @@ export class CourseBatchesPage implements OnInit {
   public batches: Array<any>;
 
   /**
-   * Contains ref of course service
+   * Selected filter
    */
-  public courseService: CourseService;
-
-  /**
-   * Contains navigation controller ref
-   */
-  public navCtrl: NavController;
-
-  /**
-   * Contains ref of navigation params
-   */
-  public navParams: NavParams;
-
-  /**
-   * Contains ref of angular NgZone service
-   */
-  public zone: NgZone;
-
-  /**
-   * Contains reference of auth service
-   */
-  public authService: AuthService;
-
-  /**
-   * Contains reference of ionic toast controller
-   */
-  public toastCtrl: ToastController;
-
   selectedFilter: string;
 
   /**
    * Default method of class CourseBatchesComponent
-   * 
+   *
    * @param {CourseService} courseService To get batches list
    * @param {NavController} navCtrl To redirect form one page to another
    * @param {NavParams} navParams To get url params
-   * @param {NgZone} zone To bind data 
+   * @param {NgZone} zone To bind data
    * @param {AuthService} authService To get logged-in user data
    */
-  constructor(courseService: CourseService, navCtrl: NavController, navParams: NavParams, zone: NgZone,
-    authService: AuthService, toastCtrl: ToastController) {
-    this.courseService = courseService;
-    this.navCtrl = navCtrl;
-    this.navParams = navParams;
-    this.zone = zone;
-    this.authService = authService;
-    this.tabBarElement = document.querySelector('.tabbar.show-tabbar');
-    this.selectedFilter = 'View ongoing batches';
-    this.toastCtrl = toastCtrl;
+  constructor(
+    private courseService: CourseService,
+    private navCtrl: NavController,
+    private navParams: NavParams,
+    private zone: NgZone,
+    private authService: AuthService,
+    private commonUtilService: CommonUtilService,
+    private events: Events
+  ) {
+
+    this.filterList.ONGOING = this.commonUtilService.translateMessage('VIEW_ONGOING_BATCHES');
+    this.filterList.UPCOMING = this.commonUtilService.translateMessage('VIEW_UPCOMING_BATCHES');
+    // this.selectedFilter = this.filterList.ONGOING;
+  }
+
+  ngOnInit(): void {
+    this.getUserId();
   }
 
   /**
    * Enroll logged-user into selected batch
-   * 
+   *
    * @param {any} item contains details of select batch
    */
   enrollIntoBatch(item: any): void {
-    const option = {
+    const enrollCourseRequest: EnrollCourseRequest = {
       userId: this.userId,
       courseId: item.courseId,
       contentId: item.courseId,
       batchId: item.id
     };
-    this.courseService.enrollCourse(option, (data: any) => {
-      data = JSON.parse(data);
-      this.zone.run(() => {
-        console.log('You have successfully enrolled...');
-        this.navCtrl.pop();
-      });
-    },
-      (error: any) => {
+    this.courseService.enrollCourse(enrollCourseRequest)
+      .then((data: any) => {
+        data = JSON.parse(data);
+        this.zone.run(() => {
+          console.log('You have successfully enrolled...');
+          this.commonUtilService.showToast(this.commonUtilService.translateMessage('COURSE_ENROLLED'));
+          this.events.publish(EventTopics.ENROL_COURSE_SUCCESS, {
+            batchId: item.id
+          });
+          this.navCtrl.pop();
+        });
+      })
+      .catch((error: any) => {
         console.log('error while enrolling into batch ==>', error);
+        this.zone.run(() => {
+          error = JSON.parse(error);
+          if (error && error.error === 'CONNECTION_ERROR') {
+            this.commonUtilService.showToast(this.commonUtilService.translateMessage('ERROR_NO_INTERNET_MESSAGE'));
+          } else if (error && error.error === 'USER_ALREADY_ENROLLED_COURSE') {
+            this.commonUtilService.showToast(this.commonUtilService.translateMessage('ALREADY_ENROLLED_COURSE'));
+          }
+        });
       });
   }
 
@@ -139,14 +152,14 @@ export class CourseBatchesPage implements OnInit {
    */
   getUserId(): void {
     this.authService.getSessionData((session) => {
-      if (session === undefined || session == null || session === "null") {
+      if (session === undefined || session == null || session === 'null') {
         console.log('session expired');
         this.zone.run(() => { this.isGuestUser = true; });
       } else {
-        this.zone.run(() => { 
-          let sessionObj = JSON.parse(session);
+        this.zone.run(() => {
+          const sessionObj = JSON.parse(session);
           this.isGuestUser = false;
-          this.userId = sessionObj["userToken"];
+          this.userId = sessionObj[ProfileConstants.USER_TOKEN];
           this.getBatchesByCourseId();
         });
       }
@@ -156,28 +169,42 @@ export class CourseBatchesPage implements OnInit {
   /**
    * To get batches by course id
    */
-  getBatchesByCourseId(): void {
-    console.log('getting course batches.... =>')
+  getBatchesByCourseId(status: CourseBatchStatus = CourseBatchStatus.IN_PROGRESS): void {
+    console.log('getting course batches.... =>');
     this.showLoader = true;
-    const option = {
-      courseIds: [this.navParams.get('identifier')]
-    }
-    this.courseService.getCourseBatches(option, (data: any) => {
-      data = JSON.parse(data);
-      console.log('Batches received successfully... =>', data);
-      this.zone.run(() => {
-        this.batches = data.result.content;
-        this.spinner(false);
-        _.forEach(data.result.content, (value, key) => {
-          if (value.status === 1) {
-            this.ongoingBatches.push(value);
+    const courseBatchesRequest: CourseBatchesRequest = {
+      courseId: this.navParams.get('identifier'),
+      enrollmentType: CourseEnrollmentType.OPEN,
+      status: status
+    };
+
+    this.courseService.getCourseBatches(courseBatchesRequest)
+      .then((data: any) => {
+        data = JSON.parse(data);
+        console.log('Batches received successfully... =>', data);
+        this.zone.run(() => {
+          this.ongoingBatches = [];
+          this.upcommingBatches = [];
+
+          this.batches = data.result.content;
+          this.spinner(false);
+          _.forEach(data.result.content, (value, key) => {
+            if (value.status === 1) {
+              this.ongoingBatches.push(value);
+            } else {
+              this.upcommingBatches.push(value);
+            }
+          });
+
+          if (status === CourseBatchStatus.IN_PROGRESS) {
+            this.selectedFilter = this.filterList.ONGOING;
           } else {
-            this.upcommingBatches.push(value);
+            this.selectedFilter = this.filterList.UPCOMING;
           }
+
         });
-      });
-    },
-      (error: any) => {
+      })
+      .catch((error: any) => {
         console.log('error while fetching course batches ==>', error);
         this.spinner(false);
       });
@@ -189,33 +216,14 @@ export class CourseBatchesPage implements OnInit {
     });
   }
 
-  toggleDetails(data) {
-    this.selectedFilter = data.title;
+  changeFilter(filter: string) {
+    if (filter === 'ONGOING') {
+      this.selectedFilter = this.filterList.ONGOING;
+      this.getBatchesByCourseId(CourseBatchStatus.IN_PROGRESS);
+    } else {
+      this.selectedFilter = this.filterList.UPCOMING;
+      this.getBatchesByCourseId(CourseBatchStatus.NOT_STARTED);
+    }
   }
 
-  ionViewWillEnter(): void {
-    this.tabBarElement.style.display = 'none';
-  }
-
-  showMessage(message: string) {
-    let toast = this.toastCtrl.create({
-      message: message,
-      duration: 2000,
-      position: 'bottom'
-    });
-    toast.onDidDismiss(() => {
-    });
-
-    toast.present();
-  }
-
-  signIn() {
-    let message = 'Sign in functionality is under progress'
-    this.showMessage(message)
-  }
-
-  ngOnInit(): void {
-    this.tabBarElement.style.display = 'none';
-    this.getUserId();
-  }
 }
